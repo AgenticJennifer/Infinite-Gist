@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/infinite-gist-readme-visual-v7-delicate-subtitle.svg" alt="Infinite Gist" width="920">
+  <img src="infinite-gist-readme-visual-v7-delicate-subtitle.svg" alt="Infinite Gist" width="920">
 </p>
 ## Overview
 
