@@ -1,6 +1,7 @@
 <p align="center">
   <img src="infinite-gist-readme-visual-v7-delicate-subtitle.svg" alt="Infinite Gist" width="920">
 </p>
+
 ## Overview
 
 Infinite Gist is a developer-focused security product for finding exposed credentials, internal code, and risky fragments shared through GitHub Gists. It is designed to help developers and engineering teams detect issues quickly, understand what was exposed, and remediate with confidence.
