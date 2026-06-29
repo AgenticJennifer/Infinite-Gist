@@ -2,7 +2,7 @@
 Application configuration and settings.
 """
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 from typing import List
 import secrets
@@ -45,9 +45,9 @@ class Settings(BaseSettings):
     # Security settings
     ENCRYPTION_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
     
-    class Config:
-        case_sensitive = True
-        env_file = ".env"
+    model_config = SettingsConfigDict(
+        case_sensitive=True, env_file=".env", extra="ignore"
+    )
 
 
 settings = Settings()
