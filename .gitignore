@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Database
+*.db
+*.sqlite
+.docker/data/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Infra (local-only)
+.opencode/
+.omo/
+.codegraph/
+.agent/
+
+# Planning phases (staging/working only)
+.planning/phases/
+
+# Session artifacts
+session-*.md
