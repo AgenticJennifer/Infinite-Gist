@@ -1,102 +1,191 @@
-<p align="center">
-  <img src="infinite-gist-readme-visual-v7-delicate-subtitle.svg" alt="Infinite Gist" width="920">
-</p>
+# Infinite Gist MVP
 
+Evidence-safe, history-aware GitHub Gist audit and remediation queue.
 
-Infinite Gist is a developer-focused security product for finding exposed credentials, internal code, and risky fragments shared through GitHub Gists. It is designed to help developers and engineering teams detect issues quickly, understand what was exposed, and remediate with confidence.
+This is a runnable MVP for the tightened PRD. It is intentionally narrow. It scans accessible user Gists, checks current content and accessible revision history, creates masked findings, stores HMAC fingerprints instead of raw secret values, provides a triage UI, and verifies whether a finding remains in current content or history.
 
-The product focuses on trustworthy results, transparent audit trails, and minimal-friction workflows. Rather than trying to do everything at once, Infinite Gist starts with a narrow and credible detection loop, then expands into remediation and continuous monitoring.
+## What is included
 
-## Why it exists
+- FastAPI web app with Jinja UI.
+- SQLite default for local development.
+- SQLAlchemy data model aligned to the PRD.
+- GitHub OAuth callback support.
+- Developer token connect for local testing.
+- Gist enumeration.
+- Current Gist content scanning.
+- Accessible revision-history scanning.
+- Deterministic detector engine.
+- Masked evidence records.
+- HMAC secret fingerprints.
+- Finding lifecycle states.
+- Proof-of-fix verification.
+- Audit events.
+- Masked CSV export.
+- Demo seed script.
+- Unit tests.
 
-GitHub Gists are easy to share and easy to forget. That makes them a real source of accidental exposure for secrets, internal snippets, and risky fragments that can remain visible longer than intended.
+## What is deliberately not included yet
 
-Infinite Gist exists to reduce that risk by giving users visibility into what is exposed, how severe it is, where it appeared, and what to do next.
+- Full repository scanning.
+- Organization-wide Gist governance.
+- Async worker queue.
+- Slack or webhook delivery.
+- Email sending.
+- Automated Gist edit/delete actions.
+- Provider live-token validation.
+- Billing.
+- Multi-user auth and RBAC.
 
-## What it does
+## Local setup
 
-### Detection
-- Authenticate with GitHub using least-privilege access
-- Enumerate accessible Gists
-- Scan current Gist files for secrets, credentials, keys, tokens, and risky fragments
-- Traverse accessible revision history to detect past exposure
-- Classify findings using deterministic rules such as regex and entropy checks
+Create a virtual environment and install dependencies.
 
-### Risk and evidence
-- Assign severity levels to findings
-- Distinguish credential exposure from informational leakage
-- Tag findings with file, line context, and revision metadata
-- Preserve masked evidence for audit-safe review
+```bash
+cd infinite-gist-mvp
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-### Workflow
-- Store findings with timestamps and metadata
-- Maintain an audit trail of detection and remediation events
-- Display findings in a minimal dashboard with severity, status, and filters
+Create local configuration.
 
-## Design principles
+```bash
+cp .env.example .env
+python - <<'PY'
+from cryptography.fernet import Fernet
+print(Fernet.generate_key().decode())
+PY
+```
 
-- Trustworthy results over opaque magic
-- Deterministic detection before complex automation
-- Recommendation-first remediation
-- Minimal encrypted metadata
-- Auditability by default
-- Web-first experience for broad accessibility
+Put that generated value into `FERNET_KEY` in `.env`. Also replace `APP_SECRET` and `HMAC_SECRET` with long random values.
 
-## Current scope
+Initialize the database.
 
-### In scope for v1
-- GitHub OAuth
-- User-level Gist discovery
-- Current-content scanning
-- Revision-history scanning where accessible
-- Severity scoring
-- Findings persistence
-- Minimal findings dashboard
-- Audit-safe masked evidence display
+```bash
+python scripts/init_db.py
+```
 
-### Out of scope for v1
-- Full repository scanning
-- IDE or plugin integrations
-- Broad enterprise policy engines
-- Full secret rotation integrations
-- Complex billing
-- Real-time copilots
+Optional: seed synthetic demo data.
 
-## Roadmap
+```bash
+python scripts/seed_demo.py
+```
 
-| Phase | Focus |
-|---|---|
-| 1 | Foundation: auth, enumeration, scanning, severity scoring, persistence, dashboard, masked evidence |
-| 2 | Credible detection: stronger secret scanning, confidence scoring, better historical coverage, temporal analysis |
-| 3 | Remediation: make private, delete, rotate secrets, verify fixes, notifications, rollback basics |
-| 4 | Continuous operation: recurring scans, digests, account-level settings, posture trends, opt-in automation |
+Run the app.
 
-## Tech direction
+```bash
+uvicorn app.main:app --reload
+```
 
-- Detection engine: Python
-- Web application: Node.js + React
-- Priority: secure handling of findings and masked evidence
-- Constraint: scans should complete within a practical user-facing window
-- Dependency to design around: GitHub API rate limits
+Open `http://127.0.0.1:8000`.
 
-## Status
+## GitHub connection modes
 
-This project is in early definition and build planning. The first milestone is a credible, explainable detection loop that can validate core value quickly before deeper remediation and automation layers are added.
+### OAuth mode
 
-## README structure
+Set these in `.env`:
 
-Planned repository sections may include:
+```bash
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+GITHUB_CALLBACK_URL=http://127.0.0.1:8000/auth/github/callback
+```
 
-- `README.md` for product overview
-- `docs/` for design notes and deeper specifications
-- `assets/` for visuals and branding
-- `backend/` for detection and service logic
-- `frontend/` for the web interface
+The MVP requests the `gist` scope. GitHub documents the Gist REST endpoints for listing, getting, updating, deleting, listing commits, and getting revisions. GitHub also documents that reading or writing Gists on a user's behalf needs the `gist` OAuth scope.
 
-## Contributing
+### Developer token mode
 
-This project is currently evolving rapidly. Contributions, feedback, and design discussion should stay aligned with the core priorities: accurate detection, safe evidence handling, explainability, and developer trust.
+For local testing, set:
 
-## License
+```bash
+ALLOW_DEV_PAT_CONNECT=true
+```
 
-TBD
+Then paste a GitHub token with Gist access into the onboarding form. This path is for local development only. Do not use it as the production auth design.
+
+## Evidence safety model
+
+The scanner handles raw content only in memory during scanning. It stores:
+
+- Detector id and version.
+- Finding type.
+- Severity and confidence.
+- Gist id and file location.
+- Revision pointer.
+- Masked preview.
+- Redacted context excerpt.
+- HMAC fingerprint.
+- Recommendation.
+- Verification and residual-risk state.
+
+It does not store by default:
+
+- Raw secret values.
+- Full Gist bodies.
+- Full revision bodies.
+- Raw secrets in audit events.
+- Raw secrets in CSV export.
+
+The HMAC fingerprint lets the verifier recognize the same secret later without storing the secret itself.
+
+## Detector behavior
+
+The detector engine is deterministic. Current detector families include:
+
+- GitHub token-shaped values.
+- AWS access key ids.
+- AWS secret access key assignments.
+- OpenAI-style API keys.
+- Stripe secret keys.
+- Slack token-shaped values.
+- Database URLs containing credentials.
+- Private key blocks.
+- Generic credential assignments.
+- High-entropy sensitive assignments.
+
+Severity and confidence are separate. A high-severity match still shows confidence so users do not confuse heuristic matches with verified live credentials.
+
+## Verification behavior
+
+The proof-of-fix action rescans the affected Gist and accessible revisions. It compares detector id plus HMAC fingerprint.
+
+Verification outcomes:
+
+- `verified_fixed`: no current or historical evidence observed.
+- `history_risk_remains`: current content appears clean, but revision history still contains evidence.
+- `still_present`: current content or current plus history still contains evidence.
+
+For secrets, cleanup of Gist content is not enough. The recommendation tells users to rotate or revoke the credential first.
+
+## Tests
+
+```bash
+pytest -q
+```
+
+The tests cover masking, fingerprinting, redaction, detector output, and history-only scanner behavior.
+
+## Production hardening checklist
+
+Before production use:
+
+- Replace SQLite with Postgres.
+- Move scans to a queue-backed worker.
+- Add real authentication and tenant isolation.
+- Disable developer token connect.
+- Use cloud KMS or envelope encryption for GitHub tokens.
+- Add CSRF/session hardening appropriate to the chosen frontend stack.
+- Add provider validation with strict privacy controls.
+- Add rate-limit budgeting and incremental scans.
+- Add detector regression corpus.
+- Add structured logs that reject raw secret payloads.
+- Add audit retention and evidence retention policies.
+- Add security review for every remediation action.
+
+## Known limitations
+
+This MVP runs scans synchronously through the web request. That is acceptable for proving the workflow, not for production scale.
+
+The GitHub auth model is practical for a user-level Gist audit. Organization-wide Gist governance is not implemented because ownership and access semantics need a separate feasibility spike.
+
+The scanner fetches accessible revision history through the Gist API. If GitHub truncates content, the client follows `raw_url` when available.
