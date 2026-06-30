@@ -158,7 +158,7 @@ class SchedulerService:
         return (
             self.db.query(ScanSchedule)
             .filter(
-                ScanSchedule.enabled == True,
+                ScanSchedule.enabled.is_(True),
                 ScanSchedule.next_run_at <= now,
             )
             .all()

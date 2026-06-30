@@ -2,8 +2,11 @@
 Authentication utilities and dependencies.
 """
 
+import base64
 from datetime import datetime, timedelta
 from typing import Optional
+
+from cryptography.fernet import Fernet
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
@@ -42,6 +45,28 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
         to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
     )
     return encoded_jwt
+
+
+def _get_fernet() -> Fernet:
+    """Build a Fernet instance from the configured encryption key."""
+    configured_key = settings.ENCRYPTION_KEY.encode()
+    try:
+        return Fernet(configured_key)
+    except ValueError:
+        normalized_key = base64.urlsafe_b64encode(
+            configured_key[:32].ljust(32, b"0")
+        )
+        return Fernet(normalized_key)
+
+
+def encrypt_token(token: str) -> str:
+    """Encrypt a GitHub token before database storage."""
+    return _get_fernet().encrypt(token.encode()).decode()
+
+
+def decrypt_token(encrypted_token: str) -> str:
+    """Decrypt a GitHub token for outbound GitHub API calls."""
+    return _get_fernet().decrypt(encrypted_token.encode()).decode()
 
 
 async def get_current_user(

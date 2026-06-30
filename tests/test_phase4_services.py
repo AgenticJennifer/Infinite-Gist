@@ -4,8 +4,7 @@ Phase 4 Continuous Operation Service Tests
 
 import pytest
 import asyncio
-import json
-from unittest.mock import Mock, patch, AsyncMock, MagicMock, PropertyMock
+from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session
 
@@ -15,9 +14,6 @@ from src.backend.db.models import (
     SecurityTrend,
     DigestReport,
     Finding,
-    ScanRun,
-    RemediationAction,
-    SeverityLevel,
 )
 from src.backend.services.scheduler_service import SchedulerService
 from src.backend.services.scan_executor import ScanExecutor
@@ -98,7 +94,7 @@ class TestSchedulerService:
 
         with patch.object(AuditService, 'log_event', new_callable=AsyncMock):
             service = SchedulerService(mock_db)
-            schedule = asyncio.run(service.create_schedule(
+            asyncio.run(service.create_schedule(
                 user_id=1,
                 github_account_id=1,
                 frequency="daily",
@@ -114,13 +110,11 @@ class TestSchedulerService:
 
         with patch.object(AuditService, 'log_event', new_callable=AsyncMock):
             service = SchedulerService(mock_db)
-            before = datetime.utcnow()
             schedule = asyncio.run(service.create_schedule(
                 user_id=1,
                 github_account_id=1,
                 frequency="daily",
             ))
-            after = before + timedelta(days=1)
 
             # next_run_at should be approximately 1 day from now
             assert schedule.next_run_at is not None
@@ -186,7 +180,7 @@ class TestSchedulerService:
 
         with patch.object(AuditService, 'log_event', new_callable=AsyncMock):
             service = SchedulerService(mock_db)
-            result = asyncio.run(service.update_schedule(1, enabled=False))
+            asyncio.run(service.update_schedule(1, enabled=False))
 
             assert mock_schedule.enabled is False
             mock_db.commit.assert_called_once()
@@ -206,7 +200,7 @@ class TestSchedulerService:
 
         with patch.object(AuditService, 'log_event', new_callable=AsyncMock):
             service = SchedulerService(mock_db)
-            result = asyncio.run(service.update_schedule(1, frequency="weekly"))
+            asyncio.run(service.update_schedule(1, frequency="weekly"))
 
             assert mock_schedule.frequency == "weekly"
             # next_run_at should have been recalculated
@@ -405,7 +399,7 @@ class TestPolicyService:
         mock_db.refresh = Mock()
 
         service = PolicyService(mock_db)
-        result = asyncio.run(service.get_user_policy(1))
+        asyncio.run(service.get_user_policy(1))
 
         mock_db.add.assert_called_once()
         mock_db.commit.assert_called_once()
@@ -416,7 +410,7 @@ class TestPolicyService:
         mock_db.refresh = Mock()
 
         service = PolicyService(mock_db)
-        result = asyncio.run(service.update_policy(1, auto_remediate=True))
+        asyncio.run(service.update_policy(1, auto_remediate=True))
 
         assert mock_policy.auto_remediate is True
         mock_db.commit.assert_called_once()
@@ -490,7 +484,7 @@ class TestTrendService:
         mock_db.refresh = Mock()
 
         service = TrendService(mock_db)
-        result = asyncio.run(service.record_daily_snapshot(user_id=1))
+        asyncio.run(service.record_daily_snapshot(user_id=1))
 
         mock_db.add.assert_called_once()
         mock_db.commit.assert_called_once()

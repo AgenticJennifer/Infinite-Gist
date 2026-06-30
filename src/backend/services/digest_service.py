@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
-from src.backend.db.models import Finding, DigestReport, User, RemediationAction, ScanRun
+from src.backend.db.models import Finding, DigestReport, RemediationAction, ScanRun
 from src.backend.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)

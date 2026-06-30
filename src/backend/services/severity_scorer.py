@@ -9,7 +9,6 @@ levels including high/medium/low classification for Phase 2 workflow.
 """
 
 import hashlib
-from typing import Optional
 from enum import Enum
 
 from src.backend.services.secret_scanner import SecretType, SecretMatch

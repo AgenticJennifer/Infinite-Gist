@@ -2,9 +2,13 @@
 Security utilities for password hashing and JWT tokens.
 """
 
+import base64
 from datetime import datetime, timedelta
 from typing import Optional
-import jwt
+
+from cryptography.fernet import Fernet
+from fastapi import HTTPException, status
+from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
@@ -63,12 +67,6 @@ def get_current_user(token: str, db: Session):
     if user is None:
         raise credentials_exception
     return user
-
-
-# Encryption utilities for tokens
-from cryptography.fernet import Fernet
-import base64
-import os
 
 
 def get_encryption_key():

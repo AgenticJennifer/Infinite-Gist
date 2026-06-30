@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from urllib.parse import urlencode
 
 from src.backend.core.config import settings
-from src.backend.core.security import create_access_token, verify_password
+from src.backend.core.security import create_access_token, encrypt_token, verify_password
 from src.backend.db.session import get_db
 from src.backend.db.models import User, GitHubAccount
 from src.backend.schemas.auth import Token, User as UserSchema
@@ -150,22 +150,32 @@ async def github_callback(
         .first()
     )
     
+    encrypted_access_token = encrypt_token(access_token)
+
     if not github_account:
         # Create new GitHub account association
         github_account = GitHubAccount(
             user_id=user.id,
             github_id=str(github_user.get("id")),
             username=github_user.get("login"),
-            access_token=access_token,
+            access_token_encrypted=encrypted_access_token,
+            refresh_token_encrypted=None,
+            token_expires_at=None,
+            scope=token_data.get("scope") or "read:gist,user:email",
         )
         db.add(github_account)
+        db.commit()
+        db.refresh(github_account)
+    else:
+        github_account.access_token_encrypted = encrypted_access_token
+        github_account.scope = token_data.get("scope") or github_account.scope
         db.commit()
         db.refresh(github_account)
     
     # Create access token for our application
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
+        data={"sub": user.username}, expires_delta=access_token_expires
     )
     
     return {"access_token": access_token, "token_type": "bearer"}

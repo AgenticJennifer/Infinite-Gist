@@ -8,7 +8,6 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from src.backend.core.config import settings
-from src.backend.core.security import verify_password
 from src.backend.db.session import get_db
 from src.backend.db.models import User
 

@@ -10,8 +10,7 @@ from sqlalchemy import func
 from src.backend.api.deps import get_current_active_user
 from src.backend.db.session import get_db
 from src.backend.db.models import (
-    User, GitHubAccount, Gist, GistFile, GistRevision,
-    Finding, ScanResult, SeverityLevel, FindingStatus,
+    User, GitHubAccount, Gist, GistFile, Finding, ScanResult, SeverityLevel, FindingStatus,
 )
 from src.backend.schemas.gists import (
     GistResponse,

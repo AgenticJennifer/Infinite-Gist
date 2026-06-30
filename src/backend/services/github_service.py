@@ -3,10 +3,10 @@ Service for interacting with GitHub API.
 """
 
 import httpx
-from typing import List, Optional, Dict, Any
-from datetime import datetime
+from cryptography.fernet import InvalidToken
+from typing import List, Optional
 
-from src.backend.core.config import settings
+from src.backend.core.security import decrypt_token
 from src.backend.db.models import GitHubAccount
 
 
@@ -135,6 +135,8 @@ class GitHubService:
 # Factory function to create GitHubService from database record
 def get_github_service_for_account(github_account: GitHubAccount) -> GitHubService:
     """Create a GitHubService instance from a GitHubAccount database record."""
-    # In a real implementation, you would decrypt the token here
-    # For now, we're assuming the token is stored unencrypted (not recommended for production)
-    return GitHubService(github_account.access_token)
+    try:
+        access_token = decrypt_token(github_account.access_token_encrypted)
+    except InvalidToken:
+        access_token = github_account.access_token_encrypted
+    return GitHubService(access_token)

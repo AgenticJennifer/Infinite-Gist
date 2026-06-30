@@ -2,15 +2,10 @@
 Notification service for sending alerts about remediation actions.
 """
 
-from datetime import datetime
-from typing import Optional
 from sqlalchemy.orm import Session
 
 from src.backend.db.models import (
-    Finding,
-    Gist,
     RemediationAction,
-    User,
 )
 
 
@@ -93,7 +88,7 @@ Time: {action.completed_at}
         finding = action.finding
         gist = finding.gist
 
-        subject = f"Infinite Gist: Remediation Failed"
+        subject = "Infinite Gist: Remediation Failed"
         body = f"""
 Remediation action failed.
 

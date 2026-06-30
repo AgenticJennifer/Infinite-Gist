@@ -7,13 +7,12 @@ contextual correlation to identify patterns and shared secrets.
 """
 
 import logging
-from typing import List, Dict, Any, Optional, Set, Tuple
+from typing import List, Dict, Any, Optional, Set
 from datetime import datetime
 from collections import defaultdict, Counter
-import hashlib
 
 from sqlalchemy.orm import Session
-from src.backend.db.models import Finding, Gist, GistFile
+from src.backend.db.models import Finding, Gist
 
 logger = logging.getLogger(__name__)
 

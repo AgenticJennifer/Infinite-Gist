@@ -2,6 +2,7 @@
 Authentication routes for GitHub OAuth.
 """
 
+from datetime import timedelta
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 from urllib.parse import urlencode
 
 from src.backend.core.config import settings
-from src.backend.core.security import create_access_token
+from src.backend.core.security import create_access_token, encrypt_token, verify_password
 from src.backend.db.session import get_db
 from src.backend.db.models import User, GitHubAccount
 from src.backend.schemas.auth import Token
@@ -147,23 +148,26 @@ async def github_callback(
         .first()
     )
     
+    encrypted_access_token = encrypt_token(access_token)
+
     if not github_account:
         # Create new GitHub account association
         github_account = GitHubAccount(
             user_id=user.id,
             github_id=str(github_user.get("id")),
             username=github_user.get("login"),
-            access_token_encrypted=access_token,  # TODO: Encrypt this
+            access_token_encrypted=encrypted_access_token,
             refresh_token_encrypted=None,  # GitHub doesn't provide refresh tokens by default
             token_expires_at=None,  # GitHub tokens don't expire by default unless you use a GitHub App
-            scope="read:gist,user:email",
+            scope=token_data.get("scope") or "read:gist,user:email",
         )
         db.add(github_account)
         db.commit()
         db.refresh(github_account)
     else:
         # Update existing token
-        github_account.access_token_encrypted = access_token  # TODO: Encrypt this
+        github_account.access_token_encrypted = encrypted_access_token
+        github_account.scope = token_data.get("scope") or github_account.scope
         db.commit()
         db.refresh(github_account)
     

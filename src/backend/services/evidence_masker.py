@@ -5,8 +5,6 @@ Redacts secret values for safe display in UI, API responses,
 and logs. Never exposes raw secret values outside scanning pipeline.
 """
 
-import re
-from typing import Optional
 from dataclasses import dataclass
 
 

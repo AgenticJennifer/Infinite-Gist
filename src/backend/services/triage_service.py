@@ -9,7 +9,7 @@ accepted without triage.
 
 import logging
 import re
-from typing import Optional, List
+from typing import List
 from enum import Enum
 
 from src.backend.services.secret_scanner import SecretMatch, SecretType

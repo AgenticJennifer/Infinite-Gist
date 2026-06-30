@@ -8,13 +8,10 @@ from sqlalchemy.orm import Session
 
 from src.backend.db.models import (
     Finding,
-    Gist,
     GitHubAccount,
     RemediationAction,
-    AuditEvent,
-    User,
 )
-from src.backend.services.github_service import GitHubService, get_github_service_for_account
+from src.backend.services.github_service import get_github_service_for_account
 from src.backend.services.audit_service import AuditService
 
 

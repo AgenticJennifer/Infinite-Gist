@@ -5,24 +5,22 @@ Orchestrates regex scanning, TruffleHog (when available), severity scoring,
 evidence masking, triage, and persistence of Findings.
 """
 
-import asyncio
-import hashlib
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from src.backend.db.models import (
-    Gist, GistFile, GistRevision, Finding,
-    SeverityLevel, FindingStatus,
+    Gist, GistFile, Finding,
+    FindingStatus,
 )
 from src.backend.db.session import get_db
 from src.backend.core.config import settings
-from src.backend.services.github_service import GitHubService
-from src.backend.services.secret_scanner import SecretScanner, SecretMatch, SecretType
+from src.backend.services.github_service import GitHubService, get_github_service_for_account
+from src.backend.services.secret_scanner import SecretScanner, SecretMatch
 from src.backend.services.trufflehog_scanner import TruffleHogScanner
-from src.backend.services.severity_scorer import SeverityScorer, ConfidenceLevel
+from src.backend.services.severity_scorer import SeverityScorer
 from src.backend.services.evidence_masker import EvidenceMasker
 from src.backend.services.triage_service import TriageService, TriageVerdict
 
@@ -58,7 +56,7 @@ class GistScannerService:
             raise ValueError(f"GitHub account with ID {github_account_id} not found")
 
         user = github_account.user
-        github_service = GitHubService(github_account.access_token_encrypted)
+        github_service = get_github_service_for_account(github_account)
         gists = await github_service.get_user_gists()
 
         all_findings: List[Finding] = []

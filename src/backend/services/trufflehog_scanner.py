@@ -10,12 +10,20 @@ import json
 import logging
 import os
 import tempfile
+from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 
 from src.backend.core.config import settings
 from src.backend.services.secret_scanner import SecretMatch, SecretType
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ScannerStatus:
+    available: bool
+    scanner_path: str
+    capabilities: list[str] = field(default_factory=list)
 
 # Mapping from TruffleHog detector names to our SecretType enum
 TRUFFLEHOG_TYPE_MAP: Dict[str, SecretType] = {
@@ -169,7 +177,6 @@ class TruffleHogScanner:
             # Extract file path and line info
             found_file = file_info.get("path", file_path)
             line_start = file_info.get("line_start", 0)
-            line_end = file_info.get("line_end", 0)
 
             # Map detector type
             secret_type = self._map_detector_type(detector_name)
@@ -200,13 +207,12 @@ class TruffleHogScanner:
             return None
 
     @staticmethod
-    def get_status() -> "ScannerStatus":
+    def get_status() -> ScannerStatus:
         """Return current scanner status as a simple object."""
-        from types import SimpleNamespace
-        return SimpleNamespace(
+        return ScannerStatus(
             available=False,
-            scanner_path="",
-            capabilities=[],
+            scanner_path=getattr(settings, "TRUFFLEHOG_PATH", "trufflehog"),
+            capabilities=["filesystem", "json"],
         )
 
     @staticmethod

@@ -4,17 +4,11 @@ Phase 3 Remediation Service Tests
 
 import pytest
 import asyncio
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
+from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime
 from sqlalchemy.orm import Session
 
 from src.backend.db.models import (
-    Finding,
-    Gist,
-    GitHubAccount,
-    RemediationAction,
-    AuditEvent,
-    User,
     SeverityLevel,
     FindingStatus,
 )

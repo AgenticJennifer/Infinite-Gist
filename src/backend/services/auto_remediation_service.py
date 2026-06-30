@@ -5,7 +5,7 @@ Auto-remediation service for opt-in automatic remediation of findings.
 import logging
 from sqlalchemy.orm import Session
 
-from src.backend.db.models import Finding, RemediationAction
+from src.backend.db.models import Finding
 from src.backend.services.policy_service import PolicyService
 from src.backend.services.remediation_service import RemediationService
 from src.backend.services.audit_service import AuditService

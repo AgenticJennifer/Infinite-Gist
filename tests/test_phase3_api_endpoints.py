@@ -5,11 +5,8 @@ Tests for correlation, triage, evidence_masker, and trufflehog_scanner API endpo
 This version uses a more isolated approach to avoid complex import dependencies.
 """
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import Mock, patch
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.routing import APIRoute
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 import sys
 import os
@@ -19,13 +16,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
 # Import what we need for testing
 from src.backend.api.v1.endpoints import gists
-from src.backend.schemas.gists import (
-    CorrelationGroupResponse,
-    FindingResponse,
-    TemporalAnalysisResponse,
-    FindingStatsResponse,
-    ScanResponse,
-)
 
 
 class TestCorrelationEndpoints:
@@ -246,7 +236,6 @@ class TestTriageEndpoints:
                 # Mock database queries for status endpoint
                 mock_gist = Mock()
                 mock_gist.id = 1
-                mock_user_gist_ids = [mock_gist.id]
 
                 mock_findings = []
 
