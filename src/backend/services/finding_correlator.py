@@ -1,20 +1,23 @@
 """
 Cross-gist finding correlation service.
 
-Groups related findings by value hash and secret type across
-multiple gists, enabling users to see all locations where a
-compromised credential appears.
+Groups related findings by value hash across multiple gists, enabling users
+to see all locations where a compromised credential appears.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
-from collections import defaultdict
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
-from src.backend.db.models import Finding, Gist, GistFile, GistRevision
+
+from src.backend.db.models import Finding, Gist
 
 logger = logging.getLogger(__name__)
+
+
+def _value(value: Any) -> Any:
+    return value.value if hasattr(value, "value") else value
 
 
 class CorrelationGroup:
@@ -29,9 +32,25 @@ class CorrelationGroup:
         self.severities: List[str] = []
         self.first_seen: Optional[datetime] = None
         self.last_seen: Optional[datetime] = None
-        self.max_severity: str = "low"
+        self.max_severity = "low"
 
-    def add_finding(self, finding: Finding, gist: Optional[Gist] = None):
+    @property
+    def finding_count(self) -> int:
+        return len(self.finding_ids)
+
+    @property
+    def severity(self) -> str:
+        return self.max_severity
+
+    @property
+    def first_detected(self) -> Optional[datetime]:
+        return self.first_seen
+
+    @property
+    def last_detected(self) -> Optional[datetime]:
+        return self.last_seen
+
+    def add_finding(self, finding: Finding, gist: Optional[Gist] = None) -> None:
         self.finding_ids.append(finding.id)
         if finding.gist_id not in self.gist_ids:
             self.gist_ids.append(finding.gist_id)
@@ -39,8 +58,9 @@ class CorrelationGroup:
         if gist and gist.id not in self.gist_descriptions:
             self.gist_descriptions[gist.id] = gist.description or ""
 
-        if finding.severity:
-            self.severities.append(finding.severity.value)
+        severity = _value(finding.severity)
+        if severity:
+            self.severities.append(str(severity))
 
         if finding.detected_at:
             if not self.first_seen or finding.detected_at < self.first_seen:
@@ -48,17 +68,18 @@ class CorrelationGroup:
             if not self.last_seen or finding.detected_at > self.last_seen:
                 self.last_seen = finding.detected_at
 
-        # Compute max severity
         severity_order = {"critical": 4, "high": 3, "medium": 2, "low": 1}
         self.max_severity = max(
-            self.severities, key=lambda s: severity_order.get(s, 0), default="low"
+            self.severities,
+            key=lambda item: severity_order.get(item, 0),
+            default="low",
         )
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "value_hash": self.value_hash,
             "secret_type": self.secret_type,
-            "finding_count": len(self.finding_ids),
+            "finding_count": self.finding_count,
             "finding_ids": self.finding_ids,
             "gist_count": len(self.gist_ids),
             "gist_ids": self.gist_ids,
@@ -72,39 +93,28 @@ class CorrelationGroup:
 class FindingCorrelator:
     """Correlates findings across gists."""
 
-    def __init__(self, db: Session = None):
+    def __init__(self, db: Optional[Session] = None):
         self.db = db
 
-    def correlate_user_findings(
+    def _session(self, db: Optional[Session] = None) -> Session:
+        session = db or self.db
+        if session is None:
+            raise ValueError("A database session is required")
+        return session
+
+    def _build_groups(
         self,
-        user_id: int,
+        findings: List[Finding],
         db: Session,
     ) -> List[CorrelationGroup]:
-        """
-        Group all findings for a user by shared secret value.
-
-        Returns correlation groups sorted by severity (highest first).
-        """
-        # Get all findings for this user's gists
-        findings = (
-            db.query(Finding)
-            .join(Gist)
-            .filter(Gist.user_id == user_id)
-            .order_by(Finding.detected_at.asc())
-            .all()
-        )
-
         if not findings:
             return []
 
-        # Load gist descriptions
-        gist_ids = set(f.gist_id for f in findings)
+        gist_ids = {finding.gist_id for finding in findings}
         gists = db.query(Gist).filter(Gist.id.in_(gist_ids)).all()
-        gist_map = {g.id: g for g in gists}
+        gist_map = {gist.id: gist for gist in gists}
 
-        # Group by value_hash
         groups: Dict[str, CorrelationGroup] = {}
-
         for finding in findings:
             if not finding.value_hash:
                 continue
@@ -115,307 +125,156 @@ class FindingCorrelator:
                     secret_type=finding.secret_type or finding.finding_type or "unknown",
                 )
 
-            gist = gist_map.get(finding.gist_id)
-            groups[finding.value_hash].add_finding(finding, gist)
+            groups[finding.value_hash].add_finding(
+                finding,
+                gist_map.get(finding.gist_id),
+            )
 
-        # Sort by severity (highest first), then by count of findings
         severity_order = {"critical": 4, "high": 3, "medium": 2, "low": 1}
-        sorted_groups = sorted(
+        return sorted(
             groups.values(),
-            key=lambda g: (
-                severity_order.get(g.max_severity, 0),
-                len(g.finding_ids),
+            key=lambda group: (
+                severity_order.get(group.max_severity, 0),
+                group.finding_count,
             ),
             reverse=True,
         )
 
-        return sorted_groups
+    def correlate_user_findings(
+        self,
+        user_id: int,
+        db: Optional[Session] = None,
+    ) -> List[CorrelationGroup]:
+        """Group all findings for a user by shared secret value."""
+        session = self._session(db)
+        findings = (
+            session.query(Finding)
+            .join(Gist)
+            .filter(Gist.user_id == user_id)
+            .order_by(Finding.detected_at.asc())
+            .all()
+        )
+        return self._build_groups(findings, session)
+
+    def find_correlations(
+        self,
+        user_id: int,
+        finding_id: Optional[int] = None,
+        db: Optional[Session] = None,
+    ) -> List[CorrelationGroup]:
+        """Find all correlation groups, optionally scoped to one finding."""
+        session = self._session(db)
+        query = session.query(Finding).join(Gist).filter(Gist.user_id == user_id)
+
+        if finding_id is not None:
+            target = query.filter(Finding.id == finding_id).first()
+            if not target or not target.value_hash:
+                return []
+            query = session.query(Finding).join(Gist).filter(
+                Gist.user_id == user_id,
+                Finding.value_hash == target.value_hash,
+            )
+
+        findings = query.order_by(Finding.detected_at.asc()).all()
+        return self._build_groups(findings, session)
 
     def find_duplicate_secrets(
         self,
         user_id: int,
-        db: Session,
+        db: Optional[Session] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Find secrets that appear in multiple gists (cross-gist duplicates).
-
-        Returns only groups with findings in 2+ distinct gists.
-        """
-        groups = self.correlate_user_findings(user_id, db)
+        """Find secrets that appear in multiple gists."""
         return [
-            g.to_dict() for g in groups
-            if len(g.gist_ids) >= 2
+            group.to_dict()
+            for group in self.correlate_user_findings(user_id, db)
+            if len(group.gist_ids) >= 2
         ]
 
     def identify_correlation_patterns(
         self,
         user_id: int,
-        db: Session,
+        db: Optional[Session] = None,
     ) -> Dict[str, Any]:
-        """
-        Identify correlation patterns for a user.
-        
-        Returns patterns including total correlated findings,
-        highly correlated groups, secret type patterns, etc.
-        """
+        """Summarize correlation patterns for a user's findings."""
         groups = self.correlate_user_findings(user_id, db)
-        
-        total_related_findings = len([g for g in groups if g.finding_count > 1])
-        
-        # Aggregate patterns
-        dominant_secret_types = {}
-        severity_distribution = {}
-        cross_gist_patterns = {}
-        
+
+        dominant_secret_types: Dict[str, int] = {}
+        severity_distribution: Dict[str, int] = {}
+        multi_gist_count = 0
+
         for group in groups:
-            # Count secret types
             if group.secret_type:
-                dominant_secret_types[group.secret_type] = dominant_secret_types.get(group.secret_type, 0) + 1
-            
-            # Count severities
-            severity_distribution[group.max_severity] = severity_distribution.get(group.max_severity, 0) + 1
-            
-            # Multi-gist patterns
+                dominant_secret_types[group.secret_type] = (
+                    dominant_secret_types.get(group.secret_type, 0) + 1
+                )
+
+            severity_distribution[group.max_severity] = (
+                severity_distribution.get(group.max_severity, 0) + 1
+            )
+
             if len(group.gist_ids) > 1:
-                cross_gist_patterns["multi_gist_count"] = cross_gist_patterns.get("multi_gist_count", 0) + 1
-        
+                multi_gist_count += 1
+
+        related_groups = [group for group in groups if group.finding_count > 1]
         return {
-            "total_related_findings": total_related_findings,
+            "total_related_findings": len(related_groups),
             "highly_correlated_groups": len(groups),
             "patterns": {
                 "dominant_secret_types": dominant_secret_types,
-                "severity_distribution": severity_distribution
+                "severity_distribution": severity_distribution,
             },
-            "cross_gist_patterns": cross_gist_patterns,
-            "correlation_campaigns": len([g for g in groups if g.finding_count > 1]),
+            "cross_gist_patterns": {"multi_gist_count": multi_gist_count},
+            "correlation_campaigns": len(related_groups),
         }
 
     def get_finding_context(
         self,
         finding_id: int,
-        db: Session,
+        db: Optional[Session] = None,
     ) -> Optional[Dict[str, Any]]:
-        """
-        Get full context for a finding including cross-gist correlation.
-
-        Includes all gists where the same secret value appears.
-        """
-        finding = db.query(Finding).filter(Finding.id == finding_id).first()
+        """Get full context for a finding including same-secret occurrences."""
+        session = self._session(db)
+        finding = session.query(Finding).filter(Finding.id == finding_id).first()
         if not finding or not finding.value_hash:
             return None
 
-        # Find all findings with the same hash
         correlated = (
-            db.query(Finding)
+            session.query(Finding)
             .filter(Finding.value_hash == finding.value_hash)
             .all()
         )
 
-        gist_ids = set(f.gist_id for f in correlated)
-        gists = db.query(Gist).filter(Gist.id.in_(gist_ids)).all()
-        gist_map = {g.id: g for g in gists}
-
-    def find_duplicate_secrets(
-        self,
-        user_id: int,
-        db: Session,
-    ) -> List[Dict[str, Any]]:
-        """
-        Find secrets that appear in multiple gists (cross-gist duplicates).
-
-        Returns only groups with findings in 2+ distinct gists.
-        """
-        groups = self.correlate_user_findings(user_id, db)
-        return [
-            g.to_dict() for g in groups
-            if len(g.gist_ids) >= 2
-        ]
-
-    def identify_correlation_patterns(
-        self,
-        user_id: int,
-        db: Session,
-    ) -> Dict[str, Any]:
-        """
-        Identify correlation patterns for a user.
-        
-        Returns patterns including total correlated findings,
-        highly correlated groups, secret type patterns, etc.
-        """
-        groups = self.correlate_user_findings(user_id, db)
-        
-        total_related_findings = len([g for g in groups if g.finding_count > 1])
-        
-        # Aggregate patterns
-        dominant_secret_types = {}
-        severity_distribution = {}
-        cross_gist_patterns = {}
-        
-        for group in groups:
-            # Count secret types
-            if group.secret_type:
-                dominant_secret_types[group.secret_type] = dominant_secret_types.get(group.secret_type, 0) + 1
-            
-            # Count severities
-            severity_distribution[group.max_severity] = severity_distribution.get(group.max_severity, 0) + 1
-            
-            # Multi-gist patterns
-            if len(group.gist_ids) > 1:
-                cross_gist_patterns["multi_gist_count"] = cross_gist_patterns.get("multi_gist_count", 0) + 1
-        
-        return {
-            "total_related_findings": total_related_findings,
-            "highly_correlated_groups": len(groups),
-            "patterns": {
-                "dominant_secret_types": dominant_secret_types,
-                "severity_distribution": severity_distribution
-            },
-            "cross_gist_patterns": cross_gist_patterns,
-            "correlation_campaigns": len([g for g in groups if g.finding_count > 1]),
-        }
-
-    def get_finding_context(
-        self,
-        finding_id: int,
-        db: Session,
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Get full context for a finding including cross-gist correlation.
-
-        Includes all gists where the same secret value appears.
-        """
-        finding = db.query(Finding).filter(Finding.id == finding_id).first()
-        if not finding or not finding.value_hash:
-            return None
-
-        # Find all findings with the same hash
-        correlated = (
-            db.query(Finding)
-            .filter(Finding.value_hash == finding.value_hash)
-            .all()
-        )
-
-        gist_ids = set(f.gist_id for f in correlated)
-        gists = db.query(Gist).filter(Gist.id.in_(gist_ids)).all()
-        gist_map = {g.id: g for g in gists}
+        gist_ids = {item.gist_id for item in correlated}
+        gists = session.query(Gist).filter(Gist.id.in_(gist_ids)).all()
+        gist_map = {gist.id: gist for gist in gists}
 
         return {
             "finding_id": finding.id,
             "value_hash": finding.value_hash,
             "secret_type": finding.secret_type or finding.finding_type,
             "masked_value": finding.masked_value,
-            "severity": finding.severity.value if finding.severity else None,
+            "severity": _value(finding.severity),
             "confidence": finding.confidence,
             "correlated_findings": [
                 {
-                    "finding_id": f.id,
-                    "gist_id": f.gist_id,
-                    "gist_description": gist_map[f.gist_id].description if f.gist_id in gist_map else None,
-                    "file_path": f.file_path,
-                    "line_start": f.line_start,
-                    "detected_at": f.detected_at.isoformat() if f.detected_at else None,
+                    "finding_id": item.id,
+                    "gist_id": item.gist_id,
+                    "gist_description": (
+                        gist_map[item.gist_id].description
+                        if item.gist_id in gist_map
+                        else None
+                    ),
+                    "file_path": item.file_path,
+                    "line_start": item.line_start,
+                    "detected_at": (
+                        item.detected_at.isoformat() if item.detected_at else None
+                    ),
                 }
-                for f in correlated
-            ],
-            "total_occurrences": len(correlated),
-            "gist_count": len(gist_ids),
-        }
-        groups = self.correlate_user_findings(user_id, db)
-        return [
-            g.to_dict() for g in groups
-            if len(g.gist_ids) >= 2
-        ]
-
-    def identify_correlation_patterns(
-        self,
-        user_id: int,
-        db: Session,
-    ) -> Dict[str, Any]:
-        """
-        Identify correlation patterns for a user.
-        
-        Returns patterns including total correlated findings,
-        highly correlated groups, secret type patterns, etc.
-        """
-        groups = self.correlate_user_findings(user_id, db)
-        
-        total_related_findings = len([g for g in groups if g.finding_count > 1])
-        
-        # Aggregate patterns
-        dominant_secret_types = {}
-        severity_distribution = {}
-        cross_gist_patterns = {}
-        
-        for group in groups:
-            # Count secret types
-            if group.secret_type:
-                dominant_secret_types[group.secret_type] = dominant_secret_types.get(group.secret_type, 0) + 1
-            
-            # Count severities
-            severity_distribution[group.max_severity] = severity_distribution.get(group.max_severity, 0) + 1
-            
-            # Multi-gist patterns
-            if len(group.gist_ids) > 1:
-                cross_gist_patterns["multi_gist_count"] = cross_gist_patterns.get("multi_gist_count", 0) + 1
-        
-        return {
-            "total_related_findings": total_related_findings,
-            "highly_correlated_groups": len(groups),
-            "patterns": {
-                "dominant_secret_types": dominant_secret_types,
-                "severity_distribution": severity_distribution
-            },
-            "cross_gist_patterns": cross_gist_patterns,
-            "correlation_campaigns": len([g for g in groups if g.finding_count > 1]),
-        }
-
-    def get_finding_context(
-        self,
-        finding_id: int,
-        db: Session,
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Get full context for a finding including cross-gist correlation.
-
-        Includes all gists where the same secret value appears.
-        """
-        finding = db.query(Finding).filter(Finding.id == finding_id).first()
-        if not finding or not finding.value_hash:
-            return None
-
-        # Find all findings with the same hash
-        correlated = (
-            db.query(Finding)
-            .filter(Finding.value_hash == finding.value_hash)
-            .all()
-        )
-
-        gist_ids = set(f.gist_id for f in correlated)
-        gists = db.query(Gist).filter(Gist.id.in_(gist_ids)).all()
-        gist_map = {g.id: g for g in gists}
-
-        return {
-            "finding_id": finding.id,
-            "value_hash": finding.value_hash,
-            "secret_type": finding.secret_type or finding.finding_type,
-            "masked_value": finding.masked_value,
-            "severity": finding.severity.value if finding.severity else None,
-            "confidence": finding.confidence,
-            "correlated_findings": [
-                {
-                    "finding_id": f.id,
-                    "gist_id": f.gist_id,
-                    "gist_description": gist_map[f.gist_id].description if f.gist_id in gist_map else None,
-                    "file_path": f.file_path,
-                    "line_start": f.line_start,
-                    "detected_at": f.detected_at.isoformat() if f.detected_at else None,
-                }
-                for f in correlated
+                for item in correlated
             ],
             "total_occurrences": len(correlated),
             "gist_count": len(gist_ids),
         }
 
 
-# Module-level instance
 finding_correlator = FindingCorrelator()

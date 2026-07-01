@@ -5,9 +5,8 @@ import os
 # Add the parent directory to the path so imports work
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
-from fastapi import FastAPI
 from sqlalchemy.orm import Session
 
 # Import the actual app

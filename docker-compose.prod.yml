@@ -13,7 +13,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://infinite_gist:infinite_gist@db:5432/infinite_gist
+      - DATABASE_URL=postgresql+psycopg://infinite_gist:infinite_gist@db:5432/infinite_gist
     volumes:
       - sqlite_data:/app/data
     restart: unless-stopped

@@ -14,11 +14,10 @@ from sqlalchemy.orm import Session
 from src.backend.services.github_service import GitHubService
 from src.backend.services.secret_scanner import SecretScanner, SecretMatch
 from src.backend.services.trufflehog_scanner import TruffleHogScanner
-from src.backend.services.severity_scorer import SeverityScorer, ConfidenceLevel
+from src.backend.services.severity_scorer import SeverityScorer
 from src.backend.services.evidence_masker import EvidenceMasker
 from src.backend.db.models import (
-    Gist, GistRevision, GistFile, Finding,
-    SeverityLevel, FindingStatus,
+    GistRevision, Finding,
 )
 
 logger = logging.getLogger(__name__)

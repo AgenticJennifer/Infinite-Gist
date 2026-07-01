@@ -4,11 +4,9 @@ Main FastAPI application entry point for Infinite Gist.
 
 import logging
 from contextlib import contextmanager
-from typing import Generator
 
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
@@ -18,8 +16,6 @@ from fastapi.responses import JSONResponse
 from src.backend.api.v1.api import api_router
 from src.backend.core.config import settings
 from src.backend.db.session import get_db
-from src.backend.core.security import get_current_active_user
-from src.backend.services.github_service import GitHubService
 
 # Configure logging
 logging.basicConfig(

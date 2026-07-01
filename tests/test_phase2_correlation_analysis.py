@@ -10,12 +10,10 @@ Tests for:
 """
 
 import pytest
-import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, patch
-from typing import List
+from unittest.mock import Mock, patch
 
-from src.backend.services.trufflehog_scanner import TruffleHogScanner, SecretMatch
+from src.backend.services.trufflehog_scanner import SecretMatch
 from src.backend.services.scoring import EnhancedSeverityScorer, ConfidenceCategory, ScoringType
 from src.backend.db.models import Finding, Gist
 from src.backend.services.correlation import (
@@ -23,7 +21,7 @@ from src.backend.services.correlation import (
     ContentSimilarityAnalyzer,
     CorrelationAnalysisOrchestrator,
 )
-from src.backend.services.secret_scanner import SecretType, SecretMatch as RegexSecretMatch
+from src.backend.services.secret_scanner import SecretType
 
 
 class TestEnhancedSeverityScorer:

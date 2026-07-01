@@ -3,13 +3,10 @@ Service for scanning content for secrets and sensitive data.
 """
 
 import re
-import base64
-import hashlib
-from typing import List, Dict, Any, Optional, Pattern
+from typing import List, Dict, Pattern
 from dataclasses import dataclass
 from enum import Enum
 
-from src.backend.core.config import settings
 
 
 class SecretType(str, Enum):

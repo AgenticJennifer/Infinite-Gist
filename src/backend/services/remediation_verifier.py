@@ -3,17 +3,13 @@ Remediation verification service for proof-of-fix confirmation.
 """
 
 from datetime import datetime
-from typing import Optional
 from sqlalchemy.orm import Session
 
 from src.backend.db.models import (
-    Finding,
-    Gist,
     GitHubAccount,
     RemediationAction,
-    AuditEvent,
 )
-from src.backend.services.github_service import GitHubService, get_github_service_for_account
+from src.backend.services.github_service import get_github_service_for_account
 from src.backend.services.audit_service import AuditService
 
 

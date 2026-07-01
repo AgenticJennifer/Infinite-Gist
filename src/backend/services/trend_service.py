@@ -5,7 +5,6 @@ Trend service for tracking security posture over time.
 import logging
 from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from src.backend.db.models import Finding, SecurityTrend, RemediationAction
 

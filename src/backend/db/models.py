@@ -2,9 +2,8 @@
 Database models for Infinite Gist application.
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Date, Time, Enum
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Date, Enum
+from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
 import enum
 

@@ -12,7 +12,7 @@ from datetime import datetime
 from collections import defaultdict
 
 from sqlalchemy.orm import Session
-from src.backend.db.models import Finding, Gist, GistRevision
+from src.backend.db.models import Finding, Gist
 
 logger = logging.getLogger(__name__)
 
@@ -86,17 +86,6 @@ class TemporalAnalyzer:
 
         if not findings:
             return analysis
-
-        # Get revisions for this gist
-        revisions = (
-            db.query(GistRevision)
-            .filter(GistRevision.gist_id == gist_id)
-            .order_by(GistRevision.committed_at.asc())
-            .all()
-        )
-        revision_times = {
-            r.version: r.committed_at for r in revisions if r.committed_at
-        }
 
         # Track state per value_hash
         seen_hashes: Dict[str, List[Dict[str, Any]]] = defaultdict(list)

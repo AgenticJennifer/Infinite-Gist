@@ -10,10 +10,8 @@ Comprehensive test suite for:
 """
 
 import pytest
-import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, patch
-from typing import List, Dict, Any
+from unittest.mock import Mock, patch
 
 # Import services under test
 from src.backend.services.scoring import (
@@ -26,10 +24,7 @@ from src.backend.services.correlation import (
     ContentSimilarityAnalyzer,
     CorrelationAnalysisOrchestrator,
 )
-from src.backend.services.trufflehog_scanner import (
-    TruffleHogScanner,
-)
-from src.backend.services.secret_scanner import SecretType, SecretMatch
+from src.backend.services.secret_scanner import SecretType
 
 
 class TestEnhancedSeverityScorer:
@@ -469,7 +464,7 @@ class TestCorrelationAnalysisOrchestrator:
             },
         ]
 
-        result = self.orch.analyze_correlation_opportunities(user_id, db)
+        self.orch.analyze_correlation_opportunities(user_id, db)
 
         # Verify the orchestrator calls the underlying method
         mock_analyze.assert_called_once_with(user_id, db)

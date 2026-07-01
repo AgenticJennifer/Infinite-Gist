@@ -2,14 +2,12 @@
 Endpoints for remediation actions on findings.
 """
 
-from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.backend.api.deps import get_current_active_user
 from src.backend.db.session import get_db
 from src.backend.db.models import User, Finding, Gist, RemediationAction
-from src.backend.schemas.gists import FindingResponse
 from src.backend.services.remediation_service import RemediationService
 from src.backend.services.remediation_verifier import RemediationVerifier
 from src.backend.services.notification_service import NotificationService
