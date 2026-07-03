@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+
+# Infra (local-only)
+.opencode
+.omo
+.planning
+.codegraph
+.agent
+
+# Python
+__pycache__
+*.py[cod]
+*.egg-info
+dist
+build
+.coverage
+htmlcov
+.pytest_cache
+
+# Database
+*.db
+*.sqlite
+.docker/data
+
+# Session artifacts
+session-*.md
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
