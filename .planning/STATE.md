@@ -4,7 +4,7 @@
 See: .planning/PROJECT.md (updated 2026-06-29)
 
 **Core value:** Developers can discover and remediate sensitive leaks in their GitHub Gists
-**Current focus:** Phase 5 (UI polish) — frontend accessibility-hardened (this session); next up is a visual/UX `/impeccable polish` pass, not a from-scratch build
+**Current focus:** Phase 5 (UI polish) — frontend accessibility-hardened and MVP-polished (this session); ready for another `/impeccable critique` or visual design iteration if desired
 
 ## Session Tracking
 - Last activity: 2026-06-29
@@ -82,6 +82,28 @@ dead CSS). All 138 backend tests still pass; server boots and serves /static/app
 Next session: run `/impeccable polish` or `/impeccable critique` for a visual/UX pass — the bones are
 solid, this is refinement, not a rebuild. Also still open: REMED-03 (structured issue reports,
 Phase 3 backlog item) and secret rotation integration (roadmap backlog).
+
+## MVP Polish Pass (this session)
+Ran `/impeccable polish src/frontend` at MVP quality bar (not flagship). Findings and fixes:
+- **Missing interaction state**: no `:disabled` button styling anywhere, and no duplicate-submission
+  guard on any of the 7 async click handlers (save policies, generate digest, remediation actions,
+  schedule create/edit/delete, status toggle). Added a `guardClick()` helper that disables the
+  triggering button for the duration of its async call, applied at all 7 sites, plus `.btn:disabled`
+  CSS (opacity + not-allowed cursor).
+- **Token/utility drift**: repeated inline styles for icon sizing (8x `14px`, plus scattered 16/18/20/
+  32/48px one-offs) and monospace table cells (5x) had no shared class, just copy-pasted `style="..."`.
+  Extracted `.icon-xs/sm/md/lg/xl` and `.mono-cell`/`.mono-cell-sm` utility classes; also caught and
+  fixed 3 spots using raw `3rem`/`1rem`/`2rem` instead of `--space-8`/`--space-4`/`--space-6` tokens
+  (spinner, error message, fatal router error → now `.spinner-container`/`.error-message`/`.fatal-error`).
+- **Copy consistency**: 3 em-dash usages in prose broke the project's "no em dashes" rule (confirm
+  dialog text, a policy field description, and one of two differently-worded chart titles for the
+  same 30-day findings data — unified to one phrasing).
+- Verified: 138/138 backend tests still pass, server boots, /static/app.js and /static/style.css
+  serve 200, served JS is syntactically valid.
+- Not done (out of MVP scope, flag for a flagship pass if wanted): pixel-grid alignment audit,
+  full micro-interaction/transition review, forms validation-on-blur, browser-based visual QA
+  (no Chrome extension available in this environment — recommend a live pass with `/impeccable live`
+  or manual browser check next time one's connected).
 
 ## Risk Mitigation
 - All Phase 2 services have redundancy fallbacks

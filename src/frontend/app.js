@@ -32,6 +32,17 @@ function apiUrl(path, params) {
   return url.pathname + url.search;
 }
 
+/* Wraps an async click handler so the button disables itself for the
+   duration of the call, preventing duplicate submissions from rapid clicks. */
+function guardClick(btn, handler) {
+  return async (...args) => {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    try { await handler(...args); }
+    finally { btn.disabled = false; }
+  };
+}
+
 /* ===== Toast ===== */
 function toast(msg, type = 'info') {
   const container = document.getElementById('toast-container');
@@ -119,14 +130,14 @@ function confidenceBar(val) {
 
 function spinner() {
   const d = document.createElement('div');
-  d.style.cssText = 'display:flex;justify-content:center;padding:3rem';
+  d.className = 'spinner-container';
   d.innerHTML = '<div class="spinner"></div>';
   return d;
 }
 
 function errorMsg(msg) {
   const d = document.createElement('div');
-  d.style.cssText = 'padding:1rem;color:var(--color-error);text-align:center';
+  d.className = 'error-message';
   d.textContent = msg || 'Something went wrong';
   return d;
 }
@@ -134,7 +145,7 @@ function errorMsg(msg) {
 function emptyState(icon, title, desc) {
   const d = document.createElement('div');
   d.className = 'empty-state';
-  d.innerHTML = `<i data-lucide="${icon}" style="width:48px;height:48px;opacity:0.4"></i><h3>${title}</h3><p>${desc || ''}</p>`;
+  d.innerHTML = `<i data-lucide="${icon}"></i><h3>${title}</h3><p>${desc || ''}</p>`;
   return d;
 }
 
@@ -187,7 +198,7 @@ function renderLogin() {
       <h1>Infinite Gist</h1>
       <p>Continuous Gist leak detection and remediation</p>
       <a href="${API}/auth/github/login" class="btn btn-primary" style="width:100%;justify-content:center">
-        <i data-lucide="github" style="width:18px;height:18px"></i> Sign in with GitHub
+        <i data-lucide="github" class="icon-sm"></i> Sign in with GitHub
       </a>
     </div>`;
   return page;
@@ -230,7 +241,7 @@ async function renderDashboard() {
         <div class="card" style="margin-bottom:var(--space-5)">
           <div class="card-header">Posture Summary</div>
           <div style="display:flex;align-items:center;gap:var(--space-4)">
-            <i data-lucide="${trendIcon}" style="width:32px;height:32px;color:${trendColor}"></i>
+            <i data-lucide="${trendIcon}" class="icon-lg" style="color:${trendColor}"></i>
             <div><div style="font-size:var(--fs-lg);font-weight:600;text-transform:capitalize">${trend}</div>
             <div style="font-size:var(--fs-sm);color:var(--color-text-secondary)">${summary.message || ''}</div></div>
           </div>
@@ -246,7 +257,7 @@ async function renderDashboard() {
       const pts = trends.map((t, i) => `${pad + i * xStep},${h - pad - (t.total_findings / max) * (h - pad * 2)}`).join(' ');
       chartHtml = `
         <div class="chart-container">
-          <div class="card-header">Findings — Last 30 Days</div>
+          <div class="card-header">Findings Over Time (30 days)</div>
           <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">
             <polyline points="${pts}" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             ${trends.map((t, i) => `<circle cx="${pad + i * xStep}" cy="${h - pad - (t.total_findings / max) * (h - pad * 2)}" r="2" fill="var(--color-accent)"/>`).join('')}
@@ -285,7 +296,7 @@ async function renderFindings() {
       <option value="medium">Medium</option>
       <option value="low">Low</option>
     </select>
-    <button class="btn btn-primary btn-sm" id="apply-filter"><i data-lucide="filter" style="width:14px;height:14px"></i> Filter</button>`;
+    <button class="btn btn-primary btn-sm" id="apply-filter"><i data-lucide="filter" class="icon-xs"></i> Filter</button>`;
 
   const tableContainer = document.createElement('div');
   tableContainer.className = 'table-container';
@@ -345,7 +356,7 @@ async function renderFindings() {
         tr.setAttribute('aria-label', `View finding: ${f.secret_type || 'finding'} in ${f.file_path || 'unknown file'}`);
         tr.innerHTML = `
           <td>${severityBadge(f.severity)}</td>
-          <td style="font-family:var(--font-mono);font-size:var(--fs-xs)">${f.secret_type || '—'}</td>
+          <td class="mono-cell">${f.secret_type || '—'}</td>
           <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs)">${f.file_path || '—'}</td>
           <td>${confidenceBar(f.confidence)}</td>
           <td><span class="badge badge-${f.status === 'open' || f.status === 'new' ? 'warning' : f.status === 'false_positive' ? 'low' : 'success'}">${f.status || 'new'}</span></td>
@@ -414,16 +425,16 @@ async function renderFindingDetail(id) {
         <div class="detail-field"><div class="detail-label">Status</div><div class="detail-value"><span class="badge badge-${finding.status === 'open' || finding.status === 'new' ? 'warning' : finding.status === 'false_positive' ? 'low' : 'success'}">${finding.status || 'new'}</span></div></div>
       </div>
       <div class="card">
-        <div class="detail-field"><div class="detail-label">Secret Type</div><div class="detail-value" style="font-family:var(--font-mono);font-size:var(--fs-sm)">${finding.secret_type || '—'}</div></div>
+        <div class="detail-field"><div class="detail-label">Secret Type</div><div class="detail-value mono-cell-sm">${finding.secret_type || '—'}</div></div>
         <div class="detail-field"><div class="detail-label">Confidence</div><div class="detail-value">${confidenceBar(finding.confidence)}</div></div>
       </div>
       <div class="card">
-        <div class="detail-field"><div class="detail-label">File Path</div><div class="detail-value" style="font-family:var(--font-mono);font-size:var(--fs-xs)">${finding.file_path || '—'}</div></div>
+        <div class="detail-field"><div class="detail-label">File Path</div><div class="detail-value mono-cell">${finding.file_path || '—'}</div></div>
         <div class="detail-field"><div class="detail-label">Line Range</div><div class="detail-value">${finding.line_start || '?'} — ${finding.line_end || '?'}</div></div>
       </div>
       <div class="card">
         <div class="detail-field"><div class="detail-label">Detected</div><div class="detail-value" style="font-size:var(--fs-sm)">${formatDate(finding.detected_at)}</div></div>
-        <div class="detail-field"><div class="detail-label">Gist ID</div><div class="detail-value" style="font-family:var(--font-mono);font-size:var(--fs-xs)">${finding.gist_id}</div></div>
+        <div class="detail-field"><div class="detail-label">Gist ID</div><div class="detail-value mono-cell">${finding.gist_id}</div></div>
       </div>`;
     content.appendChild(detailGrid);
 
@@ -452,34 +463,34 @@ async function renderFindingDetail(id) {
 
     const statusBtn = document.createElement('button');
     statusBtn.className = 'btn btn-secondary btn-sm';
-    statusBtn.innerHTML = '<i data-lucide="toggle-left" style="width:14px;height:14px"></i> Toggle Status';
-    statusBtn.onclick = async () => {
+    statusBtn.innerHTML = '<i data-lucide="toggle-left" class="icon-xs"></i> Toggle Status';
+    statusBtn.onclick = guardClick(statusBtn, async () => {
       const newStatus = finding.status === 'open' ? 'resolved' : 'open';
       try { await api(`/gists/findings/${id}/status?new_status=${newStatus}`, { method: 'PUT' }); toast('Status updated', 'success'); renderFindingDetail(id).then(r => content.replaceWith(r)); }
       catch (e) { toast(e.message, 'error'); }
-    };
+    });
     actionsCard.querySelector('div').appendChild(statusBtn);
 
     const fpBtn = document.createElement('button');
     fpBtn.className = 'btn btn-secondary btn-sm';
-    fpBtn.innerHTML = '<i data-lucide="x-circle" style="width:14px;height:14px"></i> Mark False Positive';
-    fpBtn.onclick = async () => {
+    fpBtn.innerHTML = '<i data-lucide="x-circle" class="icon-xs"></i> Mark False Positive';
+    fpBtn.onclick = guardClick(fpBtn, async () => {
       if (!await confirmDialog('Mark this finding as false positive?')) return;
       try { await api(`/gists/findings/${id}/ignore`, { method: 'PUT' }); toast('Marked as false positive', 'success'); renderFindingDetail(id).then(r => content.replaceWith(r)); }
       catch (e) { toast(e.message, 'error'); }
-    };
+    });
     actionsCard.querySelector('div').appendChild(fpBtn);
 
     // Remediation buttons
     const remediateBtn = (action, label) => {
       const btn = document.createElement('button');
       btn.className = 'btn btn-danger btn-sm';
-      btn.innerHTML = `<i data-lucide="shield-off" style="width:14px;height:14px"></i> ${label}`;
-      btn.onclick = async () => {
-        if (!await confirmDialog(`${label} — are you sure?`)) return;
+      btn.innerHTML = `<i data-lucide="shield-off" class="icon-xs"></i> ${label}`;
+      btn.onclick = guardClick(btn, async () => {
+        if (!await confirmDialog(`${label}: are you sure?`)) return;
         try { await api(`/remediation/${action}`, { method: 'POST', body: JSON.stringify({ finding_id: id }) }); toast(`${label} initiated`, 'success'); }
         catch (e) { toast(e.message, 'error'); }
-      };
+      });
       return btn;
     };
     actionsCard.querySelector('div').appendChild(remediateBtn('make-private', 'Make Private'));
@@ -498,7 +509,7 @@ async function renderFindingDetail(id) {
       corrTable.innerHTML = `<table>
         <thead><tr><th>Value Hash</th><th>Findings</th><th>Severity</th><th>Type</th><th>Gist IDs</th><th>First Detected</th></tr></thead>
         <tbody>${correlations.map(c => `<tr>
-          <td style="font-family:var(--font-mono);font-size:var(--fs-xs)">${c.value_hash?.slice(0, 16) || '—'}…</td>
+          <td class="mono-cell">${c.value_hash?.slice(0, 16) || '—'}…</td>
           <td>${c.finding_count}</td>
           <td>${severityBadge(c.severity)}</td>
           <td>${c.secret_type || '—'}</td>
@@ -556,7 +567,7 @@ async function renderCorrelations() {
     tc.innerHTML = `<table>
       <thead><tr><th>Value Hash</th><th>Findings</th><th>Severity</th><th>Type</th><th>Gist IDs</th><th>Range</th></tr></thead>
       <tbody>${groups.map(g => `<tr>
-        <td style="font-family:var(--font-mono);font-size:var(--fs-xs)">${g.value_hash?.slice(0, 16) || '—'}…</td>
+        <td class="mono-cell">${g.value_hash?.slice(0, 16) || '—'}…</td>
         <td>${g.finding_count}</td>
         <td>${severityBadge(g.severity)}</td>
         <td>${g.secret_type || '—'}</td>
@@ -582,7 +593,7 @@ async function renderSchedules() {
   toolbar.className = 'toolbar';
   const createBtn = document.createElement('button');
   createBtn.className = 'btn btn-primary btn-sm';
-  createBtn.innerHTML = '<i data-lucide="plus" style="width:14px;height:14px"></i> New Schedule';
+  createBtn.innerHTML = '<i data-lucide="plus" class="icon-xs"></i> New Schedule';
   toolbar.appendChild(createBtn);
 
   const tableContainer = document.createElement('div');
@@ -607,14 +618,15 @@ async function renderSchedules() {
         const tr = document.createElement('tr');
         tr.innerHTML = `<td>${s.id}</td><td>${s.name || '—'}</td><td>${s.interval || s.schedule_type || '—'}</td><td>${s.target || s.github_account_id || '—'}</td>
           <td><span class="badge badge-${s.enabled ? 'success' : 'low'}">${s.enabled ? 'Active' : 'Disabled'}</span></td>
-          <td><button class="btn btn-ghost btn-icon" data-edit="${s.id}" aria-label="Edit schedule ${s.name || s.id}"><i data-lucide="edit" style="width:14px;height:14px"></i></button>
-          <button class="btn btn-ghost btn-icon" data-delete="${s.id}" aria-label="Delete schedule ${s.name || s.id}"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button></td>`;
+          <td><button class="btn btn-ghost btn-icon" data-edit="${s.id}" aria-label="Edit schedule ${s.name || s.id}"><i data-lucide="edit" class="icon-xs"></i></button>
+          <button class="btn btn-ghost btn-icon" data-delete="${s.id}" aria-label="Delete schedule ${s.name || s.id}"><i data-lucide="trash-2" class="icon-xs"></i></button></td>`;
+        const deleteBtn = tr.querySelector('[data-delete]');
         tr.querySelector('[data-edit]').onclick = () => editSchedule(s);
-        tr.querySelector('[data-delete]').onclick = async () => {
+        deleteBtn.onclick = guardClick(deleteBtn, async () => {
           if (!await confirmDialog(`Delete schedule #${s.id}?`)) return;
           try { await api(`/schedules/${s.id}`, { method: 'DELETE' }); toast('Schedule deleted', 'success'); loadSchedules(); }
           catch (e) { toast(e.message, 'error'); }
-        };
+        });
         tbody.appendChild(tr);
       });
       tableContainer.appendChild(table);
@@ -643,14 +655,15 @@ async function renderSchedules() {
       `<button class="btn btn-secondary" data-cancel>Cancel</button>
        <button class="btn btn-primary" data-save>${isNew ? 'Create' : 'Save'}</button>`);
     m.querySelector('[data-cancel]').onclick = () => m.remove();
-    m.querySelector('[data-save]').onclick = async () => {
+    const saveBtn = m.querySelector('[data-save]');
+    saveBtn.onclick = guardClick(saveBtn, async () => {
       const body = { name: m.querySelector('#sched-name').value, interval: m.querySelector('#sched-interval').value, github_account_id: parseInt(m.querySelector('#sched-target').value) || 1 };
       try {
         if (isNew) { await api('/schedules/', { method: 'POST', body: JSON.stringify(body) }); toast('Schedule created', 'success'); }
         else { await api(`/schedules/${s.id}`, { method: 'PUT', body: JSON.stringify(body) }); toast('Schedule updated', 'success'); }
         m.remove(); loadSchedules();
       } catch (e) { toast(e.message, 'error'); }
-    };
+    });
   }
 }
 
@@ -685,7 +698,7 @@ async function renderPolicies() {
       if (f.type === 'checkbox') {
         g.innerHTML = `<label class="form-label" style="display:flex;align-items:center;gap:var(--space-3);cursor:pointer">
           <input type="checkbox" ${val ? 'checked' : ''} id="pol-${f.key}" style="width:18px;height:18px"> ${f.label}
-          ${f.desc ? `<span style="font-weight:400;color:var(--color-text-secondary)">— ${f.desc}</span>` : ''}
+          ${f.desc ? `<span style="font-weight:400;color:var(--color-text-secondary)">(${f.desc})</span>` : ''}
         </label>`;
       } else if (f.type === 'select') {
         g.innerHTML = `<label class="form-label">${f.label}</label>
@@ -698,8 +711,8 @@ async function renderPolicies() {
 
     const saveBtn = document.createElement('button');
     saveBtn.className = 'btn btn-primary';
-    saveBtn.innerHTML = '<i data-lucide="save" style="width:16px;height:16px"></i> Save Policies';
-    saveBtn.onclick = async () => {
+    saveBtn.innerHTML = '<i data-lucide="save" class="icon-sm"></i> Save Policies';
+    saveBtn.onclick = guardClick(saveBtn, async () => {
       const body = {};
       fields.forEach(f => {
         const el = document.getElementById(`pol-${f.key}`);
@@ -707,7 +720,7 @@ async function renderPolicies() {
       });
       try { await api('/policies/', { method: 'PUT', body: JSON.stringify(body) }); toast('Policies saved', 'success'); }
       catch (e) { toast(e.message, 'error'); }
-    };
+    });
     form.appendChild(saveBtn);
     content.appendChild(form);
 
@@ -727,7 +740,7 @@ async function renderDigests() {
   toolbar.className = 'toolbar';
   const genBtn = document.createElement('button');
   genBtn.className = 'btn btn-primary btn-sm';
-  genBtn.innerHTML = '<i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Generate Now';
+  genBtn.innerHTML = '<i data-lucide="refresh-cw" class="icon-xs"></i> Generate Now';
   toolbar.appendChild(genBtn);
 
   const tableContainer = document.createElement('div');
@@ -761,10 +774,10 @@ async function renderDigests() {
     }
   }
 
-  genBtn.onclick = async () => {
+  genBtn.onclick = guardClick(genBtn, async () => {
     try { await api('/digests/generate', { method: 'POST' }); toast('Digest generation started', 'success'); load(); }
     catch (e) { toast(e.message, 'error'); }
-  };
+  });
 
   load();
   return page;
@@ -890,7 +903,7 @@ const router = {
       const hamburger = document.createElement('button');
       hamburger.className = 'hamburger';
       hamburger.setAttribute('aria-label', 'Toggle navigation menu');
-      hamburger.innerHTML = '<i data-lucide="menu" style="width:20px;height:20px"></i>';
+      hamburger.innerHTML = '<i data-lucide="menu" class="icon-md"></i>';
       hamburger.onclick = () => {
         document.querySelector('.sidebar')?.classList.toggle('open');
         document.querySelector('.sidebar-overlay')?.classList.toggle('open');
@@ -938,7 +951,7 @@ const router = {
       if (content) app.appendChild(content);
       else {
         const el = document.createElement('div');
-        el.style.cssText = 'padding:2rem;text-align:center;color:var(--color-error)';
+        el.className = 'fatal-error';
         el.textContent = `Error: ${e.message}`;
         app.appendChild(el);
       }

@@ -296,9 +296,15 @@ body {
   border: 1px solid transparent;
   cursor: pointer;
   transition: background var(--duration-fast) var(--ease-out),
-              border-color var(--duration-fast) var(--ease-out);
+              border-color var(--duration-fast) var(--ease-out),
+              opacity var(--duration-fast) var(--ease-out);
   text-decoration: none;
   line-height: 1.4;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .btn-primary {
@@ -352,6 +358,23 @@ body {
   min-width: 44px;
   min-height: 44px;
   justify-content: center;
+}
+
+/* --- Utility: icon sizing (matches button/context scale) --- */
+.icon-xs { width: 14px; height: 14px; }
+.icon-sm { width: 18px; height: 18px; }
+.icon-md { width: 20px; height: 20px; }
+.icon-lg { width: 32px; height: 32px; }
+.icon-xl { width: 48px; height: 48px; }
+
+/* --- Utility: monospace cell (hashes, file paths, IDs) --- */
+.mono-cell {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+.mono-cell-sm {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
 }
 
 /* --- Tables --- */
@@ -504,6 +527,12 @@ tr.clickable { cursor: pointer; }
 }
 
 /* --- Spinner --- */
+.spinner-container {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-8);
+}
+
 .spinner {
   display: inline-block;
   width: 20px;
@@ -515,6 +544,19 @@ tr.clickable { cursor: pointer; }
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* --- Error Messages --- */
+.error-message {
+  padding: var(--space-4);
+  color: var(--color-error);
+  text-align: center;
+}
+
+.fatal-error {
+  padding: var(--space-6);
+  color: var(--color-error);
+  text-align: center;
+}
 
 /* --- Empty State --- */
 .empty-state {
