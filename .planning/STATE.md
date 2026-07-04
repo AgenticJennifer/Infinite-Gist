@@ -105,6 +105,18 @@ Ran `/impeccable polish src/frontend` at MVP quality bar (not flagship). Finding
   (no Chrome extension available in this environment — recommend a live pass with `/impeccable live`
   or manual browser check next time one's connected).
 
+## TODO: Live browser check (pending)
+User asked to check the frontend in a real browser "next time you're online" (Chrome extension
+unavailable in this background session). Next session with Chrome connected: boot the server
+(`.venv/bin/python -m uvicorn src.backend.main:app --port 8000`), walk login → dashboard → findings
+→ finding detail → correlations → schedules → policies → digests → trends, and verify:
+- Visual rendering matches DESIGN.md intent (no layout breakage, icons render via lucide.createIcons())
+- The harden-pass a11y fixes actually work at runtime: keyboard nav on sortable columns and finding
+  rows, modal focus trap + Escape-to-close + focus return, toast aria-live announces to screen readers
+- The polish-pass guardClick() disabled state is visually apparent (not just functionally correct)
+- Responsive behavior at 768px/375px breakpoints (hamburger menu, stacked stats grid)
+- No console errors on any route
+
 ## Risk Mitigation
 - All Phase 2 services have redundancy fallbacks
 - Phase 3 remediation uses verification before confirmation
