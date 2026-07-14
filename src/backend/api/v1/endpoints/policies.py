@@ -2,6 +2,7 @@
 Endpoints for managing account-level security policies.
 """
 
+import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -11,6 +12,7 @@ from src.backend.db.session import get_db
 from src.backend.db.models import User, AccountPolicy
 from src.backend.services.policy_service import PolicyService
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -64,8 +66,9 @@ async def update_policy(
     try:
         policy = await service.update_policy(current_user.id, **updates)
         return _policy_to_response(policy)
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to update policy for user %s", current_user.id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update policy: {str(e)}",
+            detail="Failed to update policy.",
         )

@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
-from src.backend.db.models import Finding, DigestReport, RemediationAction, ScanRun
+from src.backend.db.models import Finding, Gist, DigestReport, RemediationAction, ScanRun
 from src.backend.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,8 @@ class DigestService:
 
         new_findings = (
             self.db.query(Finding)
-            .filter(Finding.detected_at >= period_start)
+            .join(Gist, Finding.gist_id == Gist.id)
+            .filter(Gist.user_id == user_id, Finding.detected_at >= period_start)
             .count()
         )
 
@@ -51,7 +52,9 @@ class DigestService:
 
         critical = (
             self.db.query(Finding)
+            .join(Gist, Finding.gist_id == Gist.id)
             .filter(
+                Gist.user_id == user_id,
                 Finding.detected_at >= period_start,
                 Finding.severity == "critical",
             )
@@ -105,7 +108,8 @@ class DigestService:
 
         new_findings = (
             self.db.query(Finding)
-            .filter(Finding.detected_at >= period_start)
+            .join(Gist, Finding.gist_id == Gist.id)
+            .filter(Gist.user_id == user_id, Finding.detected_at >= period_start)
             .count()
         )
 
@@ -121,7 +125,9 @@ class DigestService:
 
         critical = (
             self.db.query(Finding)
+            .join(Gist, Finding.gist_id == Gist.id)
             .filter(
+                Gist.user_id == user_id,
                 Finding.detected_at >= period_start,
                 Finding.severity == "critical",
             )

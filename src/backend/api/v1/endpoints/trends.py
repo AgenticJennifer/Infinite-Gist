@@ -2,6 +2,8 @@
 Endpoints for security posture trends.
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -10,6 +12,7 @@ from src.backend.db.session import get_db
 from src.backend.db.models import User
 from src.backend.services.trend_service import TrendService
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -68,8 +71,9 @@ async def record_snapshot(
             "low_findings": trend.low_findings,
             "remediated_count": trend.remediated_count,
         }
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to record trend snapshot for user %s", current_user.id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to record snapshot: {str(e)}",
+            detail="Failed to record snapshot.",
         )

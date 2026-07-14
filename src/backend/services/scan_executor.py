@@ -79,12 +79,22 @@ class ScanExecutor:
         results = []
 
         for schedule in due_schedules:
+            claimed = await self.scheduler_service.claim_schedule(
+                schedule.id, schedule.frequency
+            )
+            if not claimed:
+                logger.info(
+                    "Schedule %s already claimed by a concurrent run, skipping",
+                    schedule.id,
+                )
+                continue
+
             try:
                 scan_run = await self.execute_scheduled_scan(schedule)
                 results.append(scan_run)
-            except Exception as e:
-                logger.error(
-                    f"Failed to execute scheduled scan for schedule {schedule.id}: {e}"
+            except Exception:
+                logger.exception(
+                    "Failed to execute scheduled scan for schedule %s", schedule.id
                 )
 
         return results

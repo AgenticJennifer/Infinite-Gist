@@ -174,6 +174,25 @@ class TestSchedulerService:
         with pytest.raises(ValueError, match="Schedule 999 not found"):
             asyncio.run(service.mark_schedule_run(999))
 
+    def test_claim_schedule_success(self, mock_db):
+        mock_db.query.return_value.filter.return_value.update.return_value = 1
+        mock_db.commit = Mock()
+
+        service = SchedulerService(mock_db)
+        claimed = asyncio.run(service.claim_schedule(1, "daily"))
+
+        assert claimed is True
+        mock_db.commit.assert_called_once()
+
+    def test_claim_schedule_already_claimed(self, mock_db):
+        mock_db.query.return_value.filter.return_value.update.return_value = 0
+        mock_db.commit = Mock()
+
+        service = SchedulerService(mock_db)
+        claimed = asyncio.run(service.claim_schedule(1, "daily"))
+
+        assert claimed is False
+
     def test_update_schedule(self, mock_db, mock_schedule):
         mock_db.query.return_value.filter.return_value.first.return_value = mock_schedule
         mock_db.commit = Mock()
@@ -269,42 +288,55 @@ class TestScanExecutor:
 
     def test_execute_all_due_scans(self, mock_db, mock_schedule):
         with patch.object(SchedulerService, 'get_due_schedules', new_callable=AsyncMock, return_value=[mock_schedule]):
-            with patch.object(ScanExecutor, 'execute_scheduled_scan', new_callable=AsyncMock) as mock_exec:
-                mock_scan_run = Mock()
-                mock_scan_run.id = 1
-                mock_scan_run.status = "completed"
-                mock_exec.return_value = mock_scan_run
+            with patch.object(SchedulerService, 'claim_schedule', new_callable=AsyncMock, return_value=True):
+                with patch.object(ScanExecutor, 'execute_scheduled_scan', new_callable=AsyncMock) as mock_exec:
+                    mock_scan_run = Mock()
+                    mock_scan_run.id = 1
+                    mock_scan_run.status = "completed"
+                    mock_exec.return_value = mock_scan_run
 
-                service = ScanExecutor(mock_db)
-                results = asyncio.run(service.execute_all_due_scans())
+                    service = ScanExecutor(mock_db)
+                    results = asyncio.run(service.execute_all_due_scans())
 
-                assert len(results) == 1
+                    assert len(results) == 1
+
+    def test_execute_all_due_scans_skips_already_claimed(self, mock_db, mock_schedule):
+        with patch.object(SchedulerService, 'get_due_schedules', new_callable=AsyncMock, return_value=[mock_schedule]):
+            with patch.object(SchedulerService, 'claim_schedule', new_callable=AsyncMock, return_value=False):
+                with patch.object(ScanExecutor, 'execute_scheduled_scan', new_callable=AsyncMock) as mock_exec:
+                    service = ScanExecutor(mock_db)
+                    results = asyncio.run(service.execute_all_due_scans())
+
+                    mock_exec.assert_not_called()
+                    assert results == []
 
     def test_execute_all_due_scans_with_failure(self, mock_db, mock_schedule):
         schedule2 = Mock()
         schedule2.id = 2
         schedule2.user_id = 1
+        schedule2.frequency = "daily"
 
         with patch.object(SchedulerService, 'get_due_schedules', new_callable=AsyncMock, return_value=[mock_schedule, schedule2]):
-            call_count = 0
+            with patch.object(SchedulerService, 'claim_schedule', new_callable=AsyncMock, return_value=True):
+                call_count = 0
 
-            async def mock_execute(schedule):
-                nonlocal call_count
-                call_count += 1
-                if call_count == 1:
-                    return Mock(id=1, status="completed")
-                else:
-                    raise Exception("Scan failed")
+                async def mock_execute(schedule):
+                    nonlocal call_count
+                    call_count += 1
+                    if call_count == 1:
+                        return Mock(id=1, status="completed")
+                    else:
+                        raise Exception("Scan failed")
 
-            with patch.object(ScanExecutor, 'execute_scheduled_scan', side_effect=mock_execute):
-                mock_db.add = Mock()
-                mock_db.commit = Mock()
-                mock_db.refresh = Mock()
-                service = ScanExecutor(mock_db)
-                results = asyncio.run(service.execute_all_due_scans())
+                with patch.object(ScanExecutor, 'execute_scheduled_scan', side_effect=mock_execute):
+                    mock_db.add = Mock()
+                    mock_db.commit = Mock()
+                    mock_db.refresh = Mock()
+                    service = ScanExecutor(mock_db)
+                    results = asyncio.run(service.execute_all_due_scans())
 
-                # First succeeded, second failed — should get 1 result
-                assert len(results) == 1
+                    # First succeeded, second failed — should get 1 result
+                    assert len(results) == 1
 
     def test_execute_all_due_scans_empty(self, mock_db):
         with patch.object(SchedulerService, 'get_due_schedules', new_callable=AsyncMock, return_value=[]):
@@ -332,6 +364,7 @@ class TestDigestService:
     def test_generate_daily_digest(self, mock_db):
         # Mock query chains for counts
         mock_db.query.return_value.filter.return_value.count.return_value = 3
+        mock_db.query.return_value.join.return_value.filter.return_value.count.return_value = 3
         mock_db.add = Mock()
         mock_db.commit = Mock()
         mock_db.refresh = Mock()
@@ -345,6 +378,7 @@ class TestDigestService:
 
     def test_generate_weekly_digest(self, mock_db):
         mock_db.query.return_value.filter.return_value.count.return_value = 5
+        mock_db.query.return_value.join.return_value.filter.return_value.count.return_value = 5
         mock_db.add = Mock()
         mock_db.commit = Mock()
         mock_db.refresh = Mock()

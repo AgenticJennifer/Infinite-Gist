@@ -2,16 +2,20 @@
 Endpoints for remediation actions on findings.
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.backend.api.deps import get_current_active_user
+from src.backend.core.rate_limit import enforce_remediation_rate_limit
 from src.backend.db.session import get_db
 from src.backend.db.models import User, Finding, Gist, RemediationAction
 from src.backend.services.remediation_service import RemediationService
 from src.backend.services.remediation_verifier import RemediationVerifier
 from src.backend.services.notification_service import NotificationService
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -30,7 +34,7 @@ def _action_to_response(action: RemediationAction) -> dict:
     }
 
 
-@router.post("/make-private")
+@router.post("/make-private", dependencies=[Depends(enforce_remediation_rate_limit)])
 async def make_gist_private(
     finding_id: int,
     current_user: User = Depends(get_current_active_user),
@@ -69,14 +73,15 @@ async def make_gist_private(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-    except Exception as e:
+    except Exception:
+        logger.exception("make-private remediation failed for finding %s", finding_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Remediation failed: {str(e)}",
+            detail="Remediation failed.",
         )
 
 
-@router.post("/delete")
+@router.post("/delete", dependencies=[Depends(enforce_remediation_rate_limit)])
 async def delete_gist(
     finding_id: int,
     current_user: User = Depends(get_current_active_user),
@@ -115,14 +120,15 @@ async def delete_gist(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-    except Exception as e:
+    except Exception:
+        logger.exception("delete remediation failed for finding %s", finding_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Remediation failed: {str(e)}",
+            detail="Remediation failed.",
         )
 
 
-@router.post("/rotate")
+@router.post("/rotate", dependencies=[Depends(enforce_remediation_rate_limit)])
 async def rotate_secret(
     finding_id: int,
     current_user: User = Depends(get_current_active_user),
