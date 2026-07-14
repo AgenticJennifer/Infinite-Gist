@@ -39,3 +39,5 @@ Thumbs.db
 
 # Session artifacts
 session-*.md
+codeburn-*.md
+codeburn-*.json

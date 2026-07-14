@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced manual `logging.basicConfig()` with structured `setup_logging()` from core
 - Removed empty `routers/`, `utils/`, `models/`, `shared/` directories
 - Pinned `lucide` CDN dependency to version `0.344.0`
+- Added `ruff`, `pytest`, `pytest-asyncio` to `requirements.txt`
+- Added GitHub Actions CI workflow (lint + test on push/PR)
+- Updated `.gitignore` to exclude session artifacts (`codeburn-*.md`, `codeburn-*.json`)
 
 ### Fixed
 
