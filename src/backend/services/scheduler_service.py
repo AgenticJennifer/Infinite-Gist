@@ -188,9 +188,40 @@ class SchedulerService:
             raise ValueError(f"Schedule {schedule_id} not found")
 
         schedule.last_run_at = datetime.now(timezone.utc)
-        schedule.next_run_at = self._calculate_next_run(schedule.frequency)
         schedule.updated_at = datetime.now(timezone.utc)
         self.db.commit()
         self.db.refresh(schedule)
 
         return schedule
+
+    async def claim_schedule(self, schedule_id: int, frequency: str) -> bool:
+        """
+        Atomically claim a due schedule for execution.
+
+        Advances next_run_at in a single UPDATE guarded by the same due-condition
+        used by get_due_schedules, so only one concurrent caller can "win" the
+        claim for a given schedule.
+
+        Args:
+            schedule_id: The schedule ID to claim
+            frequency: The schedule's frequency, used to compute the new next_run_at
+
+        Returns:
+            True if this call claimed the schedule, False if it was already
+            claimed (or disabled/not yet due) by the time this ran.
+        """
+        now = datetime.now(timezone.utc)
+        rows_updated = (
+            self.db.query(ScanSchedule)
+            .filter(
+                ScanSchedule.id == schedule_id,
+                ScanSchedule.enabled.is_(True),
+                ScanSchedule.next_run_at <= now,
+            )
+            .update(
+                {"next_run_at": self._calculate_next_run(frequency)},
+                synchronize_session=False,
+            )
+        )
+        self.db.commit()
+        return rows_updated == 1

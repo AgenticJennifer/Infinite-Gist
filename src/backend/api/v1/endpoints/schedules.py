@@ -55,10 +55,11 @@ async def create_schedule(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to create schedule for user %s", current_user.id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create schedule: {str(e)}",
+            detail="Failed to create schedule.",
         )
 
 

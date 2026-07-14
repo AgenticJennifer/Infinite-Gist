@@ -117,6 +117,17 @@ function h(tag, attrs, ...children) {
   return el;
 }
 
+/* Escapes a value for safe interpolation into innerHTML template strings. */
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function severityBadge(sev) {
   const s = (sev || 'low').toLowerCase();
   return `<span class="badge badge-${s}"><span class="severity-dot dot-${s}"></span>${sev}</span>`;
@@ -197,10 +208,13 @@ function renderLogin() {
     <div class="login-card">
       <h1>Infinite Gist</h1>
       <p>Continuous Gist leak detection and remediation</p>
-      <a href="${API}/auth/github/login" class="btn btn-primary" style="width:100%;justify-content:center">
+      <a href="${API}/auth/github/login" class="btn btn-primary" style="width:100%;justify-content:center" id="github-login-link">
         <i data-lucide="github" class="icon-sm"></i> Sign in with GitHub
       </a>
     </div>`;
+  page.querySelector('#github-login-link').addEventListener('click', () => {
+    sessionStorage.setItem('oauth_pending', '1');
+  });
   return page;
 }
 
@@ -353,11 +367,11 @@ async function renderFindings() {
         tr.style.cursor = 'pointer';
         tr.tabIndex = 0;
         tr.setAttribute('role', 'button');
-        tr.setAttribute('aria-label', `View finding: ${f.secret_type || 'finding'} in ${f.file_path || 'unknown file'}`);
+        tr.setAttribute('aria-label', `View finding: ${escapeHtml(f.secret_type) || 'finding'} in ${escapeHtml(f.file_path) || 'unknown file'}`);
         tr.innerHTML = `
           <td>${severityBadge(f.severity)}</td>
-          <td class="mono-cell">${f.secret_type || '—'}</td>
-          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs)">${f.file_path || '—'}</td>
+          <td class="mono-cell">${escapeHtml(f.secret_type) || '—'}</td>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs)">${escapeHtml(f.file_path) || '—'}</td>
           <td>${confidenceBar(f.confidence)}</td>
           <td><span class="badge badge-${f.status === 'open' || f.status === 'new' ? 'warning' : f.status === 'false_positive' ? 'low' : 'success'}">${f.status || 'new'}</span></td>
           <td style="font-size:var(--fs-xs);white-space:nowrap">${formatDate(f.detected_at)}</td>`;
@@ -429,7 +443,7 @@ async function renderFindingDetail(id) {
         <div class="detail-field"><div class="detail-label">Confidence</div><div class="detail-value">${confidenceBar(finding.confidence)}</div></div>
       </div>
       <div class="card">
-        <div class="detail-field"><div class="detail-label">File Path</div><div class="detail-value mono-cell">${finding.file_path || '—'}</div></div>
+        <div class="detail-field"><div class="detail-label">File Path</div><div class="detail-value mono-cell">${escapeHtml(finding.file_path) || '—'}</div></div>
         <div class="detail-field"><div class="detail-label">Line Range</div><div class="detail-value">${finding.line_start || '?'} — ${finding.line_end || '?'}</div></div>
       </div>
       <div class="card">
@@ -443,7 +457,7 @@ async function renderFindingDetail(id) {
       const snippetCard = document.createElement('div');
       snippetCard.className = 'card';
       snippetCard.style.marginBottom = 'var(--space-5)';
-      snippetCard.innerHTML = `<div class="card-header">Content Snippet</div><div class="detail-value mono">${finding.content_snippet}</div>`;
+      snippetCard.innerHTML = `<div class="card-header">Content Snippet</div><div class="detail-value mono">${escapeHtml(finding.content_snippet)}</div>`;
       content.appendChild(snippetCard);
     }
 
@@ -451,7 +465,7 @@ async function renderFindingDetail(id) {
       const maskedCard = document.createElement('div');
       maskedCard.className = 'card';
       maskedCard.style.marginBottom = 'var(--space-5)';
-      maskedCard.innerHTML = `<div class="card-header">Masked Evidence</div><div class="detail-value mono">${finding.masked_value}</div>`;
+      maskedCard.innerHTML = `<div class="card-header">Masked Evidence</div><div class="detail-value mono">${escapeHtml(finding.masked_value)}</div>`;
       content.appendChild(maskedCard);
     }
 
@@ -512,8 +526,8 @@ async function renderFindingDetail(id) {
           <td class="mono-cell">${c.value_hash?.slice(0, 16) || '—'}…</td>
           <td>${c.finding_count}</td>
           <td>${severityBadge(c.severity)}</td>
-          <td>${c.secret_type || '—'}</td>
-          <td>${(c.gist_ids || []).join(', ')}</td>
+          <td>${escapeHtml(c.secret_type) || '—'}</td>
+          <td>${(c.gist_ids || []).map(escapeHtml).join(', ')}</td>
           <td style="font-size:var(--fs-xs)">${formatDate(c.first_detected)}</td>
         </tr>`).join('')}</tbody>
       </table>`;
@@ -570,8 +584,8 @@ async function renderCorrelations() {
         <td class="mono-cell">${g.value_hash?.slice(0, 16) || '—'}…</td>
         <td>${g.finding_count}</td>
         <td>${severityBadge(g.severity)}</td>
-        <td>${g.secret_type || '—'}</td>
-        <td>${(g.gist_ids || []).join(', ')}</td>
+        <td>${escapeHtml(g.secret_type) || '—'}</td>
+        <td>${(g.gist_ids || []).map(escapeHtml).join(', ')}</td>
         <td style="font-size:var(--fs-xs)">${formatDate(g.first_detected)} — ${formatDate(g.last_detected)}</td>
       </tr>`).join('')}</tbody>
     </table>`;
@@ -616,10 +630,10 @@ async function renderSchedules() {
       const tbody = table.querySelector('tbody');
       data.forEach(s => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${s.id}</td><td>${s.name || s.frequency || '—'}</td><td>${s.frequency || '—'}</td><td>${s.target || s.github_account_id || '—'}</td>
+        tr.innerHTML = `<td>${s.id}</td><td>${escapeHtml(s.name) || escapeHtml(s.frequency) || '—'}</td><td>${escapeHtml(s.frequency) || '—'}</td><td>${escapeHtml(s.target) || escapeHtml(s.github_account_id) || '—'}</td>
           <td><span class="badge badge-${s.enabled ? 'success' : 'low'}">${s.enabled ? 'Active' : 'Disabled'}</span></td>
-          <td><button class="btn btn-ghost btn-icon" data-edit="${s.id}" aria-label="Edit schedule ${s.name || s.id}"><i data-lucide="edit" class="icon-xs"></i></button>
-          <button class="btn btn-ghost btn-icon" data-delete="${s.id}" aria-label="Delete schedule ${s.name || s.id}"><i data-lucide="trash-2" class="icon-xs"></i></button></td>`;
+          <td><button class="btn btn-ghost btn-icon" data-edit="${s.id}" aria-label="Edit schedule ${escapeHtml(s.name) || s.id}"><i data-lucide="edit" class="icon-xs"></i></button>
+          <button class="btn btn-ghost btn-icon" data-delete="${s.id}" aria-label="Delete schedule ${escapeHtml(s.name) || s.id}"><i data-lucide="trash-2" class="icon-xs"></i></button></td>`;
         const deleteBtn = tr.querySelector('[data-delete]');
         tr.querySelector('[data-edit]').onclick = () => editSchedule(s);
         deleteBtn.onclick = guardClick(deleteBtn, async () => {
@@ -643,14 +657,14 @@ async function renderSchedules() {
   function editSchedule(s) {
     const isNew = !s;
     const bodyHtml = `
-      <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="sched-name" value="${s ? (s.name || '') : ''}" placeholder="e.g. Weekly scan"></div>
+      <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="sched-name" value="${s ? escapeHtml(s.name || '') : ''}" placeholder="e.g. Weekly scan"></div>
       <div class="form-group"><label class="form-label">Interval</label>
         <select class="form-select" id="sched-interval">
           <option value="daily" ${s && s.frequency === 'daily' ? 'selected' : ''}>Daily</option>
           <option value="weekly" ${!s || s.frequency === 'weekly' ? 'selected' : ''}>Weekly</option>
           <option value="custom" ${s && s.frequency === 'custom' ? 'selected' : ''}>Custom (cron)</option>
         </select></div>
-      <div class="form-group"><label class="form-label">GitHub Account ID</label><input class="form-input" id="sched-target" value="${s ? (s.github_account_id || s.target || '') : ''}" placeholder="Account ID"></div>`;
+      <div class="form-group"><label class="form-label">GitHub Account ID</label><input class="form-input" id="sched-target" value="${s ? escapeHtml(s.github_account_id || s.target || '') : ''}" placeholder="Account ID"></div>`;
     const m = showModal(isNew ? 'Create Schedule' : 'Edit Schedule', bodyHtml,
       `<button class="btn btn-secondary" data-cancel>Cancel</button>
        <button class="btn btn-primary" data-save>${isNew ? 'Create' : 'Save'}</button>`);
@@ -965,12 +979,15 @@ const router = {
 /* ===== Init ===== */
 window.addEventListener('hashchange', () => router.handle());
 window.addEventListener('load', () => {
-  // Check for token in URL (from OAuth redirect)
+  // Check for token in URL (from OAuth redirect) — only accept it if this
+  // client just initiated the GitHub OAuth flow, to avoid a stray/crafted
+  // token in a shared or bookmarked URL being picked up as a valid session.
   const hashParams = new URLSearchParams(location.hash.replace('#', ''));
   const tokenFromHash = hashParams.get('access_token') || hashParams.get('token');
-  if (tokenFromHash) {
+  if (tokenFromHash && sessionStorage.getItem('oauth_pending')) {
     state.token = tokenFromHash;
     localStorage.setItem('token', tokenFromHash);
+    sessionStorage.removeItem('oauth_pending');
     // Clean URL
     history.replaceState(null, '', '/');
   }

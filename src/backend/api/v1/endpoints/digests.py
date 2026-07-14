@@ -2,6 +2,8 @@
 Endpoints for managing digest reports.
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -10,6 +12,7 @@ from src.backend.db.session import get_db
 from src.backend.db.models import User, DigestReport
 from src.backend.services.digest_service import DigestService
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -72,8 +75,9 @@ async def generate_digest(
             report = await service.generate_daily_digest(current_user.id)
 
         return _digest_to_response(report)
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to generate %s digest for user %s", report_type, current_user.id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate digest: {str(e)}",
+            detail="Failed to generate digest.",
         )
