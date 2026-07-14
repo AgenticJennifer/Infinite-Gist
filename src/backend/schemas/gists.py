@@ -2,7 +2,7 @@
 Pydantic models for gists and scanning.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
@@ -224,6 +224,8 @@ class GitHubAccountScanRequest(BaseModel):
 # ---- Phase 2: Credible Detection response schemas ----
 
 class FindingResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     gist_id: int
     gist_file_id: Optional[int] = None
@@ -240,9 +242,6 @@ class FindingResponse(BaseModel):
     value_hash: Optional[str] = None
     detected_at: Optional[datetime] = None
     status: str
-
-    class Config:
-        from_attributes = True
 
 
 class CorrelationGroupResponse(BaseModel):
@@ -353,6 +352,8 @@ class RemediationRequest(BaseModel):
 
 
 class RemediationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     action_type: str
     status: str
@@ -362,9 +363,6 @@ class RemediationResponse(BaseModel):
     completed_at: Optional[datetime] = None
     verified: bool = False
     error_message: Optional[str] = None
-
-    class Config:
-        from_attributes = True
 
 
 class RemediationHistoryResponse(BaseModel):
