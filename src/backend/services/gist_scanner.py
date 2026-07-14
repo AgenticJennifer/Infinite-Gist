@@ -7,7 +7,7 @@ evidence masking, triage, and persistence of Findings.
 
 import logging
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -94,7 +94,7 @@ class GistScannerService:
                 file_findings = await self._scan_file(content, filename, gist, gist_file)
                 findings.extend(file_findings)
 
-            gist.last_synced_at = datetime.utcnow()
+            gist.last_synced_at = datetime.now(timezone.utc)
             self.db.add(gist)
             self.db.commit()
 
@@ -163,7 +163,7 @@ class GistScannerService:
                 confidence=int(confidence * 100),
                 masked_value=masked_value,
                 value_hash=value_hash,
-                detected_at=datetime.utcnow(),
+                detected_at=datetime.now(timezone.utc),
                 status=FindingStatus.NEW,
             )
             self.db.add(finding)

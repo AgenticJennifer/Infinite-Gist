@@ -167,17 +167,9 @@ class TriageService:
             return 0.0
 
         from collections import Counter
+        import math
         counts = Counter(text)
         length = len(text)
-        entropy = 0.0
-
-        for count in counts.values():
-            p = count / length
-            if p > 0:
-                entropy -= p * (p.bit_length() - 1)  # log2 approximation
-
-        # More accurate calculation
-        import math
         entropy = 0.0
         for count in counts.values():
             p = count / length

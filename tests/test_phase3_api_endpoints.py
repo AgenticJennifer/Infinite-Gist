@@ -202,9 +202,20 @@ class TestTriageEndpoints:
                         {"finding_id": finding_ids[1], "verdict": "accept", "confidence": 0.55, "reason": "Test reason 2"},
                     ]
 
-                    # Mock the db query chain for ownership verification
+                    # Mock the db query chain for ownership verification.
+                    # Findings must carry the attributes the endpoint reads when
+                    # building SecretMatch objects for the triage service.
+                    def _mk(fid, conf):
+                        f = Mock(id=fid)
+                        f.secret_type = "api_key"
+                        f.confidence = conf
+                        f.masked_value = "ghp_****1234"
+                        f.file_path = "config.env"
+                        f.line_start = 1
+                        f.content_snippet = "API_KEY=ghp_****1234"
+                        return f
                     mock_db_session.query.return_value.join.return_value.filter.return_value.filter.return_value.all.return_value = [
-                        Mock(id=finding_ids[0]), Mock(id=finding_ids[1])
+                        _mk(finding_ids[0], 0.6), _mk(finding_ids[1], 0.55)
                     ]
 
                     # Get the endpoint function

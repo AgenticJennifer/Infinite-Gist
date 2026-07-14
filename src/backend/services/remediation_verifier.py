@@ -2,7 +2,7 @@
 Remediation verification service for proof-of-fix confirmation.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from src.backend.db.models import (
@@ -46,11 +46,11 @@ class RemediationVerifier:
             is_private = not gist_data.get("public", True)
 
             action.verified = is_private
-            action.verified_at = datetime.utcnow()
+            action.verified_at = datetime.now(timezone.utc)
             action.verification_details = str({
                 "gist_id": gist.github_id,
                 "public": gist_data.get("public"),
-                "verified_at": datetime.utcnow().isoformat(),
+                "verified_at": datetime.now(timezone.utc).isoformat(),
             })
             self.db.commit()
 
@@ -66,7 +66,7 @@ class RemediationVerifier:
 
         except Exception as e:
             action.verified = False
-            action.verified_at = datetime.utcnow()
+            action.verified_at = datetime.now(timezone.utc)
             action.verification_details = str({"error": str(e)})
             self.db.commit()
             return False
@@ -102,11 +102,11 @@ class RemediationVerifier:
             is_deleted = not gist_exists
 
             action.verified = is_deleted
-            action.verified_at = datetime.utcnow()
+            action.verified_at = datetime.now(timezone.utc)
             action.verification_details = str({
                 "gist_id": gist.github_id,
                 "exists": gist_exists,
-                "verified_at": datetime.utcnow().isoformat(),
+                "verified_at": datetime.now(timezone.utc).isoformat(),
             })
             self.db.commit()
 
@@ -122,7 +122,7 @@ class RemediationVerifier:
 
         except Exception as e:
             action.verified = False
-            action.verified_at = datetime.utcnow()
+            action.verified_at = datetime.now(timezone.utc)
             action.verification_details = str({"error": str(e)})
             self.db.commit()
             return False
@@ -130,7 +130,7 @@ class RemediationVerifier:
     async def verify_rotation(self, action: RemediationAction) -> bool:
         """Verify secret rotation (stub)."""
         action.verified = False
-        action.verified_at = datetime.utcnow()
+        action.verified_at = datetime.now(timezone.utc)
         action.verification_details = str({"error": "Rotation verification not implemented"})
         self.db.commit()
         return False

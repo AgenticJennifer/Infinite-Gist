@@ -83,7 +83,11 @@ class SecretScanner:
                 (re.compile(r'ASIA[0-9A-Z]{16}'), 0.8),  # AWS STS token
             ],
             SecretType.AWS_SECRET_KEY: [
-                (re.compile(r'[0-9a-zA-Z/+]{40}'), 0.6),  # This is too generic, needs context
+                # AWS secret keys are 40 chars of [A-Za-z0-9/+] but must also
+                # appear next to "aws_secret_access_key" (or similar) to avoid
+                # flagging every random 40-char string. Capture group 1 is the
+                # actual secret; scan_text uses it as the matched value.
+                (re.compile(r'(?i)(?:aws_secret_access_key|aws_secret_key|secret_access_key)\s*[=:]\s*["\']?([0-9a-zA-Z/+]{40})["\']?'), 0.6),
             ],
             SecretType.GITHUB_TOKEN: [
                 (re.compile(r'ghp_[0-9a-zA-Z]{36}'), 0.95),  # GitHub Personal Access Token (classic)
@@ -143,7 +147,9 @@ class SecretScanner:
             for secret_type, patterns in self.patterns.items():
                 for pattern, base_confidence in patterns:
                     for match in pattern.finditer(line):
-                        matched_text = match.group(0)
+                        # Prefer the first capture group (the actual secret value)
+                        # over the full match when one exists.
+                        matched_text = match.group(1) if match.groups() else match.group(0)
                         line_context = line[:match.start()] + line[match.end():]
 
                         # Check if this should be ignored, based on surrounding
@@ -178,8 +184,6 @@ class SecretScanner:
         
         # Clear raw values from context to prevent leakage
         # Context should already be safe as it's just surrounding code
-        return matches
-        
         return matches
 
     def _calculate_confidence(

@@ -1,12 +1,22 @@
 """
 Notification service for sending alerts about remediation actions.
+
+NOTE: send_email / send_webhook are STUBS. They print to stdout rather
+than delivering real notifications. This is intentional for the MVP — wiring a
+real email/SMTP or webhook provider is future work. Callers should not assume
+a notification was actually delivered; the methods return True to satisfy callers
+that only need a success signal.
 """
 
+import logging
 from sqlalchemy.orm import Session
 
 from src.backend.db.models import (
     RemediationAction,
 )
+
+logger = logging.getLogger(__name__)
+
 
 
 class NotificationService:
@@ -27,7 +37,11 @@ class NotificationService:
         Returns:
             True if sent successfully
         """
-        print(f"[NOTIFICATION] Email to {to}: {subject}")
+        logger.warning(
+            "NotificationService.send_email is a STUB — not delivering real email "
+            "to %s (subject: %s). Wire a real provider before relying on this.",
+            to, subject,
+        )
         return True
 
     async def send_webhook(self, url: str, payload: dict) -> bool:
@@ -41,7 +55,10 @@ class NotificationService:
         Returns:
             True if sent successfully
         """
-        print(f"[NOTIFICATION] Webhook to {url}: {payload}")
+        logger.warning(
+            "NotificationService.send_webhook is a STUB — not delivering real webhook "
+            "to %s. Wire a real provider before relying on this.", url,
+        )
         return True
 
     async def notify_remediation_complete(self, action: RemediationAction) -> bool:

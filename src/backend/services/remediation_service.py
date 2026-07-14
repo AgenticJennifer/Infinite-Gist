@@ -6,7 +6,7 @@ Each action is tracked with audit events and status updates.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
 
@@ -54,7 +54,7 @@ class RemediationService:
             user_id=user_id,
             action_type="make_private",
             status="pending",
-            requested_at=datetime.utcnow(),
+            requested_at=datetime.now(timezone.utc),
         )
         self.db.add(action)
         self.db.commit()
@@ -87,13 +87,13 @@ class RemediationService:
 
             # 7. Update action with response
             action.status = "completed"
-            action.executed_at = datetime.utcnow()
-            action.completed_at = datetime.utcnow()
+            action.executed_at = datetime.now(timezone.utc)
+            action.completed_at = datetime.now(timezone.utc)
             action.github_response = str(response)
 
             # 8. Update gist in database
             gist.public = False
-            gist.updated_at = datetime.utcnow()
+            gist.updated_at = datetime.now(timezone.utc)
 
             self.db.commit()
 
@@ -111,7 +111,7 @@ class RemediationService:
             # Handle failure
             action.status = "failed"
             action.error_message = str(e)
-            action.completed_at = datetime.utcnow()
+            action.completed_at = datetime.now(timezone.utc)
             self.db.commit()
 
             await self.audit_service.log_event(
@@ -149,7 +149,7 @@ class RemediationService:
             user_id=user_id,
             action_type="delete",
             status="pending",
-            requested_at=datetime.utcnow(),
+            requested_at=datetime.now(timezone.utc),
         )
         self.db.add(action)
         self.db.commit()
@@ -163,7 +163,7 @@ class RemediationService:
             details={"action_id": action.id, "gist_id": gist.github_id},
         )
 
-        github删除成功 = False
+        github_delete_succeeded = False
         try:
             # 4. Update status to executing
             action.status = "executing"
@@ -180,18 +180,18 @@ class RemediationService:
 
             # 6. Call GitHub API to delete gist
             response = await github_service.delete_gist(gist.github_id)
-            github删除成功 = True
+            github_delete_succeeded = True
 
             # 7. Update action with response
             action.status = "completed"
-            action.executed_at = datetime.utcnow()
-            action.completed_at = datetime.utcnow()
+            action.executed_at = datetime.now(timezone.utc)
+            action.completed_at = datetime.now(timezone.utc)
             action.github_response = str(response)
 
             # 8. Mark gist as deleted in database (don't actually delete the record)
             gist.deleted = True
             gist.public = False
-            gist.updated_at = datetime.utcnow()
+            gist.updated_at = datetime.now(timezone.utc)
 
             self.db.commit()
 
@@ -210,7 +210,7 @@ class RemediationService:
             logger.error(f"Delete gist failed for gist {gist.github_id}: {e}")
             
             # If GitHub delete succeeded but DB commit failed, we need to track this
-            if github删除成功:
+            if github_delete_succeeded:
                 action.error_message = f"GitHub delete succeeded but DB update failed: {str(e)}"
                 logger.critical(
                     f"INCONSISTENT STATE: Gist {gist.github_id} deleted on GitHub "
@@ -220,7 +220,7 @@ class RemediationService:
                 action.error_message = str(e)
             
             action.status = "failed"
-            action.completed_at = datetime.utcnow()
+            action.completed_at = datetime.now(timezone.utc)
             
             try:
                 self.db.commit()
@@ -239,7 +239,7 @@ class RemediationService:
                     "action_id": action.id,
                     "gist_id": gist.github_id,
                     "error": str(e),
-                    "github_succeeded": github删除成功,
+                    "github_succeeded": github_delete_succeeded,
                 },
             )
 
@@ -271,8 +271,8 @@ class RemediationService:
             user_id=user_id,
             action_type="rotate",
             status="failed",  # Not implemented yet
-            requested_at=datetime.utcnow(),
-            completed_at=datetime.utcnow(),
+            requested_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(timezone.utc),
             error_message="Secret rotation not yet implemented. Please rotate manually.",
         )
         self.db.add(action)

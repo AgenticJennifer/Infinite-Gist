@@ -3,7 +3,7 @@ Trend service for tracking security posture over time.
 """
 
 import logging
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from src.backend.db.models import Finding, SecurityTrend, RemediationAction
@@ -67,7 +67,7 @@ class TrendService:
             medium_findings=medium_findings,
             low_findings=low_findings,
             remediated_count=remediated,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
         self.db.add(trend)
         self.db.commit()

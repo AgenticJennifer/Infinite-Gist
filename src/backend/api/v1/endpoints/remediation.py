@@ -16,35 +16,6 @@ from src.backend.services.notification_service import NotificationService
 router = APIRouter()
 
 
-class RemediationRequest:
-    def __init__(self, finding_id: int):
-        self.finding_id = finding_id
-
-
-class RemediationResponse:
-    def __init__(
-        self,
-        id: int,
-        action_type: str,
-        status: str,
-        finding_id: int,
-        requested_at,
-        executed_at=None,
-        completed_at=None,
-        verified: bool = False,
-        error_message: str = None,
-    ):
-        self.id = id
-        self.action_type = action_type
-        self.status = status
-        self.finding_id = finding_id
-        self.requested_at = requested_at
-        self.executed_at = executed_at
-        self.completed_at = completed_at
-        self.verified = verified
-        self.error_message = error_message
-
-
 def _action_to_response(action: RemediationAction) -> dict:
     return {
         "id": action.id,

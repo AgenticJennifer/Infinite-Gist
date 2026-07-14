@@ -8,7 +8,7 @@ committed and then removed in later revisions.
 
 import logging
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 from src.backend.services.github_service import GitHubService
@@ -156,7 +156,7 @@ class RevisionScanner:
                         "confidence_level": confidence_level.value,
                         "masked_value": masked_value,
                         "value_hash": value_hash,
-                        "detected_at": datetime.utcnow(),
+                        "detected_at": datetime.now(timezone.utc),
                         "revision_sha": commit_sha,
                         "committed_at": committed_at,
                         "scanner": "trufflehog" if match in trufflehog_matches else "regex",

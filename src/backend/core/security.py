@@ -11,7 +11,7 @@ import base64
 import hashlib
 import hmac
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from cryptography.fernet import Fernet
@@ -45,9 +45,9 @@ def get_password_hash(password):
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(
         to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
@@ -57,7 +57,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 def create_oauth_state_token(expires_delta: Optional[timedelta] = None) -> str:
     """Create a signed, expiring, single-use state token for OAuth CSRF protection."""
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=10))
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=10))
     nonce = base64.urlsafe_b64encode(os.urandom(16)).decode()
     to_encode = {"nonce": nonce, "exp": expire, "purpose": "oauth_state"}
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)

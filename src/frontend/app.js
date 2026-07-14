@@ -616,7 +616,7 @@ async function renderSchedules() {
       const tbody = table.querySelector('tbody');
       data.forEach(s => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${s.id}</td><td>${s.name || '—'}</td><td>${s.interval || s.schedule_type || '—'}</td><td>${s.target || s.github_account_id || '—'}</td>
+        tr.innerHTML = `<td>${s.id}</td><td>${s.name || s.frequency || '—'}</td><td>${s.frequency || '—'}</td><td>${s.target || s.github_account_id || '—'}</td>
           <td><span class="badge badge-${s.enabled ? 'success' : 'low'}">${s.enabled ? 'Active' : 'Disabled'}</span></td>
           <td><button class="btn btn-ghost btn-icon" data-edit="${s.id}" aria-label="Edit schedule ${s.name || s.id}"><i data-lucide="edit" class="icon-xs"></i></button>
           <button class="btn btn-ghost btn-icon" data-delete="${s.id}" aria-label="Delete schedule ${s.name || s.id}"><i data-lucide="trash-2" class="icon-xs"></i></button></td>`;
@@ -646,9 +646,9 @@ async function renderSchedules() {
       <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="sched-name" value="${s ? (s.name || '') : ''}" placeholder="e.g. Weekly scan"></div>
       <div class="form-group"><label class="form-label">Interval</label>
         <select class="form-select" id="sched-interval">
-          <option value="daily" ${s && s.interval === 'daily' ? 'selected' : ''}>Daily</option>
-          <option value="weekly" ${!s || s.interval === 'weekly' ? 'selected' : ''}>Weekly</option>
-          <option value="custom" ${s && s.interval === 'custom' ? 'selected' : ''}>Custom (cron)</option>
+          <option value="daily" ${s && s.frequency === 'daily' ? 'selected' : ''}>Daily</option>
+          <option value="weekly" ${!s || s.frequency === 'weekly' ? 'selected' : ''}>Weekly</option>
+          <option value="custom" ${s && s.frequency === 'custom' ? 'selected' : ''}>Custom (cron)</option>
         </select></div>
       <div class="form-group"><label class="form-label">GitHub Account ID</label><input class="form-input" id="sched-target" value="${s ? (s.github_account_id || s.target || '') : ''}" placeholder="Account ID"></div>`;
     const m = showModal(isNew ? 'Create Schedule' : 'Edit Schedule', bodyHtml,
@@ -657,7 +657,7 @@ async function renderSchedules() {
     m.querySelector('[data-cancel]').onclick = () => m.remove();
     const saveBtn = m.querySelector('[data-save]');
     saveBtn.onclick = guardClick(saveBtn, async () => {
-      const body = { name: m.querySelector('#sched-name').value, interval: m.querySelector('#sched-interval').value, github_account_id: parseInt(m.querySelector('#sched-target').value) || 1 };
+      const body = { frequency: m.querySelector('#sched-interval').value, github_account_id: parseInt(m.querySelector('#sched-target').value) || 1 };
       try {
         if (isNew) { await api('/schedules/', { method: 'POST', body: JSON.stringify(body) }); toast('Schedule created', 'success'); }
         else { await api(`/schedules/${s.id}`, { method: 'PUT', body: JSON.stringify(body) }); toast('Schedule updated', 'success'); }

@@ -2,7 +2,7 @@
 Scheduler service for managing periodic scan schedules.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
 
@@ -19,7 +19,7 @@ class SchedulerService:
 
     def _calculate_next_run(self, frequency: str) -> datetime:
         """Calculate next run time based on frequency."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if frequency == "daily":
             return now + timedelta(days=1)
         elif frequency == "weekly":
@@ -54,8 +54,8 @@ class SchedulerService:
             cron_expression=cron_expression,
             enabled=True,
             next_run_at=self._calculate_next_run(frequency),
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         self.db.add(schedule)
         self.db.commit()
@@ -101,7 +101,7 @@ class SchedulerService:
         if frequency_changed:
             schedule.next_run_at = self._calculate_next_run(schedule.frequency)
 
-        schedule.updated_at = datetime.utcnow()
+        schedule.updated_at = datetime.now(timezone.utc)
         self.db.commit()
         self.db.refresh(schedule)
 
@@ -161,7 +161,7 @@ class SchedulerService:
         Returns:
             List of due ScanSchedule records
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         return (
             self.db.query(ScanSchedule)
             .filter(
@@ -187,9 +187,9 @@ class SchedulerService:
         if not schedule:
             raise ValueError(f"Schedule {schedule_id} not found")
 
-        schedule.last_run_at = datetime.utcnow()
+        schedule.last_run_at = datetime.now(timezone.utc)
         schedule.next_run_at = self._calculate_next_run(schedule.frequency)
-        schedule.updated_at = datetime.utcnow()
+        schedule.updated_at = datetime.now(timezone.utc)
         self.db.commit()
         self.db.refresh(schedule)
 

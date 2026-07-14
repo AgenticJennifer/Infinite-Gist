@@ -4,7 +4,7 @@ Digest service for generating security scan reports.
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from src.backend.db.models import Finding, DigestReport, RemediationAction, ScanRun
@@ -30,7 +30,7 @@ class DigestService:
         Returns:
             Created DigestReport record
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         period_start = now - timedelta(days=1)
 
         new_findings = (
@@ -100,7 +100,7 @@ class DigestService:
         Returns:
             Created DigestReport record
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         period_start = now - timedelta(days=7)
 
         new_findings = (
@@ -176,7 +176,7 @@ class DigestService:
 
         await self.notification_service.send_email(user_email, subject, body)
 
-        report.sent_at = datetime.utcnow()
+        report.sent_at = datetime.now(timezone.utc)
         self.db.commit()
 
         return True

@@ -5,7 +5,7 @@ Phase 4 Continuous Operation Service Tests
 import pytest
 import asyncio
 from unittest.mock import Mock, patch, AsyncMock
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from src.backend.db.models import (
@@ -17,6 +17,7 @@ from src.backend.db.models import (
 )
 from src.backend.services.scheduler_service import SchedulerService
 from src.backend.services.scan_executor import ScanExecutor
+from src.backend.services.gist_scanner import GistScannerService
 from src.backend.services.digest_service import DigestService
 from src.backend.services.policy_service import PolicyService
 from src.backend.services.trend_service import TrendService
@@ -237,7 +238,7 @@ class TestSchedulerService:
         service = SchedulerService(mock_db)
         next_run = service._calculate_next_run("daily")
         assert next_run is not None
-        assert next_run > datetime.utcnow()
+        assert next_run > datetime.now(timezone.utc)
 
     def test_calculate_next_run_weekly(self, mock_db):
         service = SchedulerService(mock_db)
@@ -258,12 +259,13 @@ class TestScanExecutor:
         mock_db.refresh = Mock()
 
         with patch.object(SchedulerService, 'mark_schedule_run', new_callable=AsyncMock):
-            service = ScanExecutor(mock_db)
-            result = asyncio.run(service.execute_scheduled_scan(mock_schedule))
+            with patch.object(GistScannerService, 'scan_github_account', new_callable=AsyncMock, return_value=[]):
+                service = ScanExecutor(mock_db)
+                result = asyncio.run(service.execute_scheduled_scan(mock_schedule))
 
-            mock_db.add.assert_called_once()
-            mock_db.commit.assert_called_once()
-            assert result.status == "completed"
+                mock_db.add.assert_called_once()
+                mock_db.commit.assert_called()
+                assert result.status == "completed"
 
     def test_execute_all_due_scans(self, mock_db, mock_schedule):
         with patch.object(SchedulerService, 'get_due_schedules', new_callable=AsyncMock, return_value=[mock_schedule]):
@@ -316,12 +318,13 @@ class TestScanExecutor:
         mock_db.commit = Mock()
         mock_db.refresh = Mock()
 
-        service = ScanExecutor(mock_db)
-        result = asyncio.run(service.run_scan_for_account(1, user_id=1))
+        with patch.object(GistScannerService, 'scan_github_account', new_callable=AsyncMock, return_value=[]):
+            service = ScanExecutor(mock_db)
+            result = asyncio.run(service.run_scan_for_account(1, user_id=1))
 
-        mock_db.add.assert_called_once()
-        mock_db.commit.assert_called_once()
-        assert result.status == "completed"
+            mock_db.add.assert_called_once()
+            mock_db.commit.assert_called()
+            assert result.status == "completed"
 
 
 class TestDigestService:

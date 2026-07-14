@@ -1,13 +1,18 @@
 """
 Scan executor service for running scheduled scans.
+
+This service drives periodic / on-demand scans. It creates a ScanRun
+record, delegates the actual scanning to GistScannerService, persists the
+result counts, and advances the schedule.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
-from src.backend.db.models import ScanRun
+from src.backend.db.models import ScanRun, Gist
 from src.backend.services.scheduler_service import SchedulerService
+from src.backend.services.gist_scanner import GistScannerService
 
 logger = logging.getLogger(__name__)
 
@@ -31,15 +36,33 @@ class ScanExecutor:
         """
         scan_run = ScanRun(
             user_id=schedule.user_id,
-            status="completed",
+            status="running",
             gists_scanned=0,
             findings_count=0,
-            started_at=datetime.utcnow(),
-            ended_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
         self.db.add(scan_run)
         self.db.commit()
         self.db.refresh(scan_run)
+
+        try:
+            scanner = GistScannerService(self.db)
+            findings = await scanner.scan_github_account(schedule.github_account_id)
+            scan_run.gists_scanned = (
+                self.db.query(Gist)
+                .filter(Gist.user_id == schedule.user_id)
+                .count()
+            )
+            scan_run.findings_count = len(findings)
+            scan_run.status = "completed"
+            scan_run.ended_at = datetime.now(timezone.utc)
+            self.db.commit()
+        except Exception as e:
+            logger.error("Scheduled scan failed for schedule %s: %s", schedule.id, e)
+            scan_run.status = "failed"
+            scan_run.ended_at = datetime.now(timezone.utc)
+            self.db.commit()
+            raise
 
         await self.scheduler_service.mark_schedule_run(schedule.id)
 
@@ -81,14 +104,32 @@ class ScanExecutor:
         """
         scan_run = ScanRun(
             user_id=user_id,
-            status="completed",
+            status="running",
             gists_scanned=0,
             findings_count=0,
-            started_at=datetime.utcnow(),
-            ended_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
         self.db.add(scan_run)
         self.db.commit()
         self.db.refresh(scan_run)
+
+        try:
+            scanner = GistScannerService(self.db)
+            findings = await scanner.scan_github_account(github_account_id)
+            scan_run.gists_scanned = (
+                self.db.query(Gist)
+                .filter(Gist.user_id == user_id)
+                .count()
+            )
+            scan_run.findings_count = len(findings)
+            scan_run.status = "completed"
+        except Exception as e:
+            logger.error("Manual scan failed for account %s: %s", github_account_id, e)
+            scan_run.status = "failed"
+            raise
+        finally:
+            scan_run.ended_at = datetime.now(timezone.utc)
+            self.db.commit()
+            self.db.refresh(scan_run)
 
         return scan_run

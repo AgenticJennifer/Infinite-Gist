@@ -27,6 +27,7 @@ from src.backend.services.finding_correlator import FindingCorrelator
 from src.backend.services.temporal_analyzer import TemporalAnalyzer
 from src.backend.services.triage_service import TriageService
 from src.backend.services.evidence_masker import EvidenceMasker
+from src.backend.services.secret_scanner import SecretMatch, SecretType
 from src.backend.services.trufflehog_scanner import TruffleHogScanner
 
 # Module-level service instances for endpoint mocking
@@ -480,7 +481,27 @@ async def triage_findings_endpoint(
     if len(findings) != len(finding_ids):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Some findings not found or access denied")
 
-    triage_result = triage_service.triage_batch(finding_ids, current_user.id, db)
+    # Convert findings to SecretMatch objects for triage
+    matches = []
+    for f in findings:
+        try:
+            st = SecretType(f.secret_type) if f.secret_type else SecretType.API_KEY
+        except ValueError:
+            st = ScannerSecretType.API_KEY
+        matches.append(SecretMatch(
+            type=st,
+            value=f.masked_value or "",
+            file_path=f.file_path or "",
+            line_number=f.line_start or 0,
+            column_start=0,
+            column_end=0,
+            confidence=(f.confidence or 0) / 100.0,
+            matched_text=f.masked_value or "",
+            context=f.content_snippet or "",
+        ))
+
+    # triage_batch returns a dict of {verdict: [SecretMatch, ...]} lists
+    triage_result = triage_service.triage_batch(matches)
 
     return {
         "findings_count": len(finding_ids),
@@ -592,7 +613,16 @@ async def mask_finding_evidence(
     if not finding:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found or access denied")
 
-    masked_result = evidence_masker.create_masked_evidence(finding_id)
+    # Convert finding to SecretMatch for masking
+    masked_result = evidence_masker.create_masked_evidence(
+        value=finding.masked_value or "",
+        matched_text=finding.masked_value or "",
+        context=finding.content_snippet or "",
+        value_hash=finding.value_hash or "",
+        secret_type=finding.secret_type or "unknown",
+        severity=finding.severity.value if finding.severity else "low",
+        confidence=(finding.confidence or 0) / 100.0,
+    )
 
     return {
         "finding_id": finding_id,

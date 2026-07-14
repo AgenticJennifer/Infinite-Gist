@@ -8,7 +8,7 @@ to prevent silent data loss.
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
 
@@ -53,7 +53,7 @@ class AuditService:
             details=json.dumps(details) if details is not None else None,
             ip_address=ip_address,
             user_agent=user_agent,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
 
         self.db.add(event)

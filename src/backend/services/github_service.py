@@ -138,5 +138,10 @@ def get_github_service_for_account(github_account: GitHubAccount) -> GitHubServi
     try:
         access_token = decrypt_token(github_account.access_token_encrypted)
     except InvalidToken:
-        access_token = github_account.access_token_encrypted
+        # Encryption key changed or token corrupted — do NOT fall back to the
+        # encrypted blob (it would be sent to GitHub as plaintext). Fail loudly.
+        raise ValueError(
+            "Could not decrypt GitHub access token for account "
+            f"{github_account.id}. The ENCRYPTION_KEY may have changed."
+        )
     return GitHubService(access_token)

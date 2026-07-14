@@ -4,8 +4,13 @@ Database models for Infinite Gist application.
 
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Date, Enum
 from sqlalchemy.orm import declarative_base, relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import enum
+
+
+def _now() -> datetime:
+    """Timezone-aware 'now' used as a SQLAlchemy column default."""
+    return datetime.now(timezone.utc)
 
 
 Base = declarative_base()
@@ -42,8 +47,8 @@ class User(Base):
     hashed_password = Column(String)
     is_active = Column(Boolean, default=True)
     role = Column(Enum(UserRole), default=UserRole.USER)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
 
 
 class GitHubAccount(Base):
@@ -57,8 +62,8 @@ class GitHubAccount(Base):
     refresh_token_encrypted = Column(String)  # Encrypted refresh token
     token_expires_at = Column(DateTime)
     scope = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
     
     # Relationship
     user = relationship("User", backref="github_accounts")
@@ -76,7 +81,7 @@ class Gist(Base):
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
     pushed_at = Column(DateTime)
-    last_synced_at = Column(DateTime, default=datetime.utcnow)
+    last_synced_at = Column(DateTime, default=_now)
 
     # Relationship
     user = relationship("User", backref="gists")
@@ -134,7 +139,7 @@ class Finding(Base):
     value_hash = Column(String, unique=True, index=True)  # Hash of original for deduplication
     
     # Metadata
-    detected_at = Column(DateTime, default=datetime.utcnow)
+    detected_at = Column(DateTime, default=_now)
     status = Column(Enum(FindingStatus), default=FindingStatus.NEW)
     
     # Relationships
@@ -148,7 +153,7 @@ class ScanRun(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    started_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime, default=_now)
     ended_at = Column(DateTime)
     status = Column(String)  # "running", "completed", "failed"
     gists_scanned = Column(Integer, default=0)
@@ -165,7 +170,7 @@ class ScanResult(Base):
     gist_id = Column(Integer, ForeignKey("gists.id"), nullable=False)
     scan_type = Column(String, nullable=False)
     status = Column(String, default="pending")
-    started_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime, default=_now)
     completed_at = Column(DateTime)
     secrets_found = Column(Integer, default=0)
     files_scanned = Column(Integer, default=0)
@@ -185,7 +190,7 @@ class AuditEvent(Base):
     details = Column(Text)  # JSON-serialized structured details
     ip_address = Column(String)
     user_agent = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
 
     user = relationship("User", backref="audit_events")
 
@@ -199,7 +204,7 @@ class RemediationAction(Base):
     action_type = Column(String, nullable=False)
     status = Column(String, default="pending", index=True)
 
-    requested_at = Column(DateTime, default=datetime.utcnow)
+    requested_at = Column(DateTime, default=_now)
     executed_at = Column(DateTime)
     completed_at = Column(DateTime)
 
@@ -225,8 +230,8 @@ class ScanSchedule(Base):
     enabled = Column(Boolean, default=True, index=True)
     last_run_at = Column(DateTime)
     next_run_at = Column(DateTime, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
 
     user = relationship("User", backref="scan_schedules")
     github_account = relationship("GitHubAccount", backref="scan_schedules")
@@ -242,8 +247,8 @@ class AccountPolicy(Base):
     notify_on_scan = Column(Boolean, default=True)
     notify_on_finding = Column(Boolean, default=True)
     digest_frequency = Column(String, default="weekly")  # "daily", "weekly", "none"
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
 
     user = relationship("User", backref="account_policies")
 
@@ -261,7 +266,7 @@ class SecurityTrend(Base):
     low_findings = Column(Integer, default=0)
     gists_scanned = Column(Integer, default=0)
     remediated_count = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
 
     user = relationship("User", backref="security_trends")
 
@@ -276,6 +281,6 @@ class DigestReport(Base):
     period_end = Column(DateTime, nullable=False)
     summary = Column(Text)  # JSON summary string
     sent_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_now)
 
     user = relationship("User", backref="digest_reports")
