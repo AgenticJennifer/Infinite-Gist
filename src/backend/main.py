@@ -3,7 +3,6 @@ Main FastAPI application entry point for Infinite Gist.
 """
 
 import logging
-from contextlib import contextmanager
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,19 +14,17 @@ from fastapi.responses import JSONResponse
 
 from src.backend.api.v1.api import api_router
 from src.backend.core.config import settings
+from src.backend.core.logging import setup_logging
 from src.backend.db.session import get_db
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure structured logging (JSON in production, plain in dev)
+setup_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Infinite Gist API",
     description="Security monitoring and remediation platform for GitHub Gists",
-    version="0.1.0",
+    version="0.2.0",
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
@@ -71,19 +68,6 @@ async def health_check(db: Session = Depends(get_db)):
             status_code=503,
             detail="Database connection error"
         )
-
-
-@contextmanager
-def application_scope():
-    """Application lifecycle management context manager."""
-    logger.info("Starting application lifecycle")
-    try:
-        yield
-    except Exception as e:
-        logger.error(f"Application error: {str(e)}")
-        raise
-    finally:
-        logger.info("Application lifecycle completed")
 
 
 # Add exception handlers
