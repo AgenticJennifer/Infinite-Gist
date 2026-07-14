@@ -2,7 +2,6 @@
 
 **Security monitoring and remediation platform for GitHub Gists**
 
-[![CI](https://github.com/AgenticJennifer/Infinite-Gist/actions/workflows/ci.yml/badge.svg)](https://github.com/AgenticJennifer/Infinite-Gist/actions)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -14,7 +13,7 @@ Infinite Gist continuously discovers, scores, and remediates sensitive leaks and
 
 **Core loop:** Discover → Understand → Act → Verify
 
-![Architecture](docs/architecture.png)
+![Architecture](docs/architecture.svg)
 
 ---
 
@@ -40,8 +39,8 @@ Infinite Gist continuously discovers, scores, and remediates sensitive leaks and
 
 ```bash
 # Clone the repository
-git clone https://github.com/AgenticJennifer/Infinite-Gist.git
-cd Infinite-Gist
+git clone https://github.com/AgenticJennifer/infinite-gist.git
+cd infinite-gist
 
 # Create virtual environment
 python3 -m venv .venv
@@ -90,15 +89,15 @@ open http://localhost:8000
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/v1/gists` | List user's Gists |
-| `POST` | `/api/v1/scan/account/{id}` | Scan a GitHub account |
-| `GET` | `/api/v1/findings` | Get all findings |
-| `GET` | `/api/v1/findings/stats` | Finding statistics |
-| `PUT` | `/api/v1/findings/{id}/status` | Update finding status |
-| `POST` | `/api/v1/triage` | Batch triage findings |
-| `GET` | `/api/v1/correlations` | Find correlated secrets |
-| `POST` | `/api/v1/remediation/make-private/{id}` | Make a Gist private |
-| `DELETE` | `/api/v1/remediation/delete/{id}` | Delete a Gist |
+| `GET` | `/api/v1/gists/gists` | List user's Gists |
+| `POST` | `/api/v1/gists/scan/account/{id}` | Scan a GitHub account |
+| `GET` | `/api/v1/gists/findings` | Get all findings |
+| `GET` | `/api/v1/gists/findings/stats` | Finding statistics |
+| `PUT` | `/api/v1/gists/findings/{id}/status` | Update finding status |
+| `POST` | `/api/v1/gists/triage` | Batch triage findings |
+| `GET` | `/api/v1/gists/correlations` | Find correlated secrets |
+| `POST` | `/api/v1/remediation/make-private?finding_id={id}` | Make a Gist private (rate-limited) |
+| `POST` | `/api/v1/remediation/delete?finding_id={id}` | Delete a Gist (rate-limited) |
 
 Full API docs available at `http://localhost:8000/docs` when running.
 
@@ -119,9 +118,9 @@ infinite-gist/
 │   └── shared/            # Shared utilities
 ├── tests/                 # Pytest test suite
 ├── docs/                  # Documentation
-├── .github/workflows/     # CI/CD
 ├── DESIGN.md              # Design tokens & theme
 ├── PRODUCT.md             # Product requirements
+├── SECURITY.md            # Threat model & security posture
 └── requirements.txt       # Python dependencies
 ```
 
@@ -164,7 +163,7 @@ alembic revision --autogenerate -m "description"
 
 ### Reporting Vulnerabilities
 
-Please report security issues privately via [GitHub Security Advisories](https://github.com/AgenticJennifer/Infinite-Gist/security/advisories/new).
+Please report security issues privately via [GitHub Security Advisories](https://github.com/AgenticJennifer/infinite-gist/security/advisories/new).
 
 ### Design Principles
 
@@ -177,7 +176,7 @@ Please report security issues privately via [GitHub Security Advisories](https:/
 
 ## Status
 
-**Backend: complete.** All 4 planned phases (detection, credible detection/correlation, remediation, continuous operation) are implemented — 138/138 tests passing. See `.planning/ROADMAP.md` for phase detail.
+**Backend: complete.** All 4 planned phases (detection, credible detection/correlation, remediation, continuous operation) are implemented — 141/141 tests passing, including a security-hardening pass (CSRF-protected OAuth, cross-user data isolation, IDOR fixes, rate-limited remediation, XSS-safe rendering). See `.planning/ROADMAP.md` for phase detail.
 
 **Frontend: functional, accessibility-hardened.** `src/frontend/` is a vanilla JS single-page app (hash routing, API client, login/dashboard/findings/correlations/schedules/policies/digests/trends views) served by FastAPI at `/`. An `/impeccable audit` pass (15/20, "Good") found solid theming and zero AI-slop anti-patterns, with accessibility as the weak dimension; a follow-up harden pass added keyboard support for sortable columns, a focus-trapped/labeled modal, `aria-live` toasts, and 44px touch targets on icon buttons.
 
