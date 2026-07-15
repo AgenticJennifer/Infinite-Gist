@@ -34,9 +34,11 @@ class RemediationVerifier:
         gist = finding.gist
 
         try:
-            github_account = self.db.query(GitHubAccount).filter(
-                GitHubAccount.user_id == action.user_id
-            ).first()
+            github_account = (
+                self.db.query(GitHubAccount)
+                .filter(GitHubAccount.user_id == action.user_id)
+                .first()
+            )
             if not github_account:
                 return False
 
@@ -47,11 +49,13 @@ class RemediationVerifier:
 
             action.verified = is_private
             action.verified_at = datetime.now(timezone.utc)
-            action.verification_details = str({
-                "gist_id": gist.github_id,
-                "public": gist_data.get("public"),
-                "verified_at": datetime.now(timezone.utc).isoformat(),
-            })
+            action.verification_details = str(
+                {
+                    "gist_id": gist.github_id,
+                    "public": gist_data.get("public"),
+                    "verified_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
             self.db.commit()
 
             if is_private:
@@ -85,9 +89,11 @@ class RemediationVerifier:
         gist = finding.gist
 
         try:
-            github_account = self.db.query(GitHubAccount).filter(
-                GitHubAccount.user_id == action.user_id
-            ).first()
+            github_account = (
+                self.db.query(GitHubAccount)
+                .filter(GitHubAccount.user_id == action.user_id)
+                .first()
+            )
             if not github_account:
                 return False
 
@@ -103,11 +109,13 @@ class RemediationVerifier:
 
             action.verified = is_deleted
             action.verified_at = datetime.now(timezone.utc)
-            action.verification_details = str({
-                "gist_id": gist.github_id,
-                "exists": gist_exists,
-                "verified_at": datetime.now(timezone.utc).isoformat(),
-            })
+            action.verification_details = str(
+                {
+                    "gist_id": gist.github_id,
+                    "exists": gist_exists,
+                    "verified_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
             self.db.commit()
 
             if is_deleted:
@@ -131,7 +139,9 @@ class RemediationVerifier:
         """Verify secret rotation (stub)."""
         action.verified = False
         action.verified_at = datetime.now(timezone.utc)
-        action.verification_details = str({"error": "Rotation verification not implemented"})
+        action.verification_details = str(
+            {"error": "Rotation verification not implemented"}
+        )
         self.db.commit()
         return False
 

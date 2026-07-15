@@ -129,8 +129,10 @@ function escapeHtml(str) {
 }
 
 function severityBadge(sev) {
-  const s = (sev || 'low').toLowerCase();
-  return `<span class="badge badge-${s}"><span class="severity-dot dot-${s}"></span>${sev}</span>`;
+  const label = sev || 'low';
+  const candidate = String(label).toLowerCase();
+  const severity = ['critical', 'high', 'medium', 'low'].includes(candidate) ? candidate : 'low';
+  return `<span class="badge badge-${severity}"><span class="severity-dot dot-${severity}"></span>${escapeHtml(label)}</span>`;
 }
 
 function confidenceBar(val) {
@@ -373,7 +375,7 @@ async function renderFindings() {
           <td class="mono-cell">${escapeHtml(f.secret_type) || '—'}</td>
           <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs)">${escapeHtml(f.file_path) || '—'}</td>
           <td>${confidenceBar(f.confidence)}</td>
-          <td><span class="badge badge-${f.status === 'open' || f.status === 'new' ? 'warning' : f.status === 'false_positive' ? 'low' : 'success'}">${f.status || 'new'}</span></td>
+          <td><span class="badge badge-${f.status === 'open' || f.status === 'new' ? 'warning' : f.status === 'false_positive' ? 'low' : 'success'}">${escapeHtml(f.status || 'new')}</span></td>
           <td style="font-size:var(--fs-xs);white-space:nowrap">${formatDate(f.detected_at)}</td>`;
         const goToFinding = () => router.navigate(`/findings/${f.id}`);
         tr.onclick = goToFinding;
@@ -436,10 +438,10 @@ async function renderFindingDetail(id) {
     detailGrid.innerHTML = `
       <div class="card">
         <div class="detail-field"><div class="detail-label">Severity</div><div class="detail-value">${severityBadge(finding.severity)}</div></div>
-        <div class="detail-field"><div class="detail-label">Status</div><div class="detail-value"><span class="badge badge-${finding.status === 'open' || finding.status === 'new' ? 'warning' : finding.status === 'false_positive' ? 'low' : 'success'}">${finding.status || 'new'}</span></div></div>
+        <div class="detail-field"><div class="detail-label">Status</div><div class="detail-value"><span class="badge badge-${finding.status === 'open' || finding.status === 'new' ? 'warning' : finding.status === 'false_positive' ? 'low' : 'success'}">${escapeHtml(finding.status || 'new')}</span></div></div>
       </div>
       <div class="card">
-        <div class="detail-field"><div class="detail-label">Secret Type</div><div class="detail-value mono-cell-sm">${finding.secret_type || '—'}</div></div>
+        <div class="detail-field"><div class="detail-label">Secret Type</div><div class="detail-value mono-cell-sm">${escapeHtml(finding.secret_type) || '—'}</div></div>
         <div class="detail-field"><div class="detail-label">Confidence</div><div class="detail-value">${confidenceBar(finding.confidence)}</div></div>
       </div>
       <div class="card">

@@ -141,7 +141,11 @@ infinite-gist/
 ### Run Tests
 
 ```bash
-pytest
+# Run from the repository root because the app mounts src/frontend at import time.
+pytest tests/ -p no:cacheprovider -o addopts=""
+
+# Dependency-free frontend tests (Node.js 20+)
+npm run test:frontend
 ```
 
 ### Run Linter
@@ -176,9 +180,9 @@ Please report security issues privately via [GitHub Security Advisories](https:/
 
 ## Status
 
-**Backend: complete.** All 4 planned phases (detection, credible detection/correlation, remediation, continuous operation) are implemented — 141/141 tests passing, including a security-hardening pass (CSRF-protected OAuth, cross-user data isolation, IDOR fixes, rate-limited remediation, XSS-safe rendering). See `.planning/ROADMAP.md` for phase detail.
+**Backend: complete.** All 4 planned phases (detection, credible detection/correlation, remediation, continuous operation) are implemented. The suite has 181 passing tests, including scanner-core and pipeline security coverage for masking, keyed fingerprints, correlation, temporal analysis, and remediation. See `.planning/ROADMAP.md` for phase detail.
 
-**Frontend: functional, accessibility-hardened.** `src/frontend/` is a vanilla JS single-page app (hash routing, API client, login/dashboard/findings/correlations/schedules/policies/digests/trends views) served by FastAPI at `/`. An `/impeccable audit` pass (15/20, "Good") found solid theming and zero AI-slop anti-patterns, with accessibility as the weak dimension; a follow-up harden pass added keyboard support for sortable columns, a focus-trapped/labeled modal, `aria-live` toasts, and 44px touch targets on icon buttons.
+**Frontend: functional, accessibility-hardened, and tested.** `src/frontend/` is a vanilla JS single-page app (hash routing, API client, login/dashboard/findings/correlations/schedules/policies/digests/trends views) served by FastAPI at `/`. Ten dependency-free Node tests cover API behavior, OAuth callback gating, authentication cleanup, duplicate-action prevention, malformed responses, and XSS-sensitive rendering helpers.
 
 ## Roadmap
 

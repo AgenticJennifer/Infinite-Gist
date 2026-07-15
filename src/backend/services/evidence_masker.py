@@ -11,10 +11,11 @@ from dataclasses import dataclass
 @dataclass
 class MaskedEvidence:
     """Result of masking a finding for display."""
-    masked_value: str           # e.g. "ghp_************456"
-    context_masked: str         # Surrounding code with the secret redacted
-    snippet: str                # Single-line excerpt for quick preview
-    value_hash: str             # SHA-256 hash for dedup (no raw value)
+
+    masked_value: str  # e.g. "ghp_************456"
+    context_masked: str  # Surrounding code with the secret redacted
+    snippet: str  # Single-line excerpt for quick preview
+    value_hash: str  # SHA-256 hash for dedup (no raw value)
     secret_type: str
     severity: str
     confidence: float
@@ -40,8 +41,8 @@ class EvidenceMasker:
         if len(value) <= 8:
             return value[:2] + "*" * max(len(value) - 2, 4)
 
-        prefix = value[:self.visible_prefix]
-        suffix = value[-self.visible_suffix:]
+        prefix = value[: self.visible_prefix]
+        suffix = value[-self.visible_suffix :]
         masked_len = len(value) - self.visible_prefix - self.visible_suffix
         return f"{prefix}{'*' * masked_len}{suffix}"
 

@@ -7,7 +7,13 @@ import logging
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
-from src.backend.db.models import Finding, Gist, DigestReport, RemediationAction, ScanRun
+from src.backend.db.models import (
+    Finding,
+    Gist,
+    DigestReport,
+    RemediationAction,
+    ScanRun,
+)
 from src.backend.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
@@ -71,13 +77,15 @@ class DigestService:
             .count()
         )
 
-        summary = json.dumps({
-            "period": f"{period_start.isoformat()} to {now.isoformat()}",
-            "new_findings": new_findings,
-            "remediated_findings": remediated,
-            "critical_findings": critical,
-            "gists_scanned": scanned,
-        })
+        summary = json.dumps(
+            {
+                "period": f"{period_start.isoformat()} to {now.isoformat()}",
+                "new_findings": new_findings,
+                "remediated_findings": remediated,
+                "critical_findings": critical,
+                "gists_scanned": scanned,
+            }
+        )
 
         report = DigestReport(
             user_id=user_id,
@@ -144,13 +152,15 @@ class DigestService:
             .count()
         )
 
-        summary = json.dumps({
-            "period": f"{period_start.isoformat()} to {now.isoformat()}",
-            "new_findings": new_findings,
-            "remediated_findings": remediated,
-            "critical_findings": critical,
-            "gists_scanned": scanned,
-        })
+        summary = json.dumps(
+            {
+                "period": f"{period_start.isoformat()} to {now.isoformat()}",
+                "new_findings": new_findings,
+                "remediated_findings": remediated,
+                "critical_findings": critical,
+                "gists_scanned": scanned,
+            }
+        )
 
         report = DigestReport(
             user_id=user_id,
@@ -187,7 +197,9 @@ class DigestService:
 
         return True
 
-    async def get_user_digests(self, user_id: int, limit: int = 30) -> list[DigestReport]:
+    async def get_user_digests(
+        self, user_id: int, limit: int = 30
+    ) -> list[DigestReport]:
         """
         Get recent digest reports for a user.
 

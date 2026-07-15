@@ -26,9 +26,13 @@ def _action_to_response(action: RemediationAction) -> dict:
         "action_type": action.action_type,
         "status": action.status,
         "finding_id": action.finding_id,
-        "requested_at": action.requested_at.isoformat() if action.requested_at else None,
+        "requested_at": action.requested_at.isoformat()
+        if action.requested_at
+        else None,
         "executed_at": action.executed_at.isoformat() if action.executed_at else None,
-        "completed_at": action.completed_at.isoformat() if action.completed_at else None,
+        "completed_at": action.completed_at.isoformat()
+        if action.completed_at
+        else None,
         "verified": action.verified,
         "error_message": action.error_message,
     }

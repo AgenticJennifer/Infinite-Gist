@@ -18,12 +18,11 @@ def _engine_kwargs(database_url: str) -> dict:
 
 
 # Create database engine
-engine = create_engine(
-    settings.DATABASE_URL, **_engine_kwargs(settings.DATABASE_URL)
-)
+engine = create_engine(settings.DATABASE_URL, **_engine_kwargs(settings.DATABASE_URL))
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 
 def get_db() -> Session:
     """

@@ -58,7 +58,9 @@ class TemporalCorrelationGroup:
 
         self.gist_count = len(self.gist_ids)
         self.revision_count += 1
-        self.cross_gist_spread[finding.gist_id] = self.cross_gist_spread.get(finding.gist_id, 0) + 1
+        self.cross_gist_spread[finding.gist_id] = (
+            self.cross_gist_spread.get(finding.gist_id, 0) + 1
+        )
 
     def detect_temporal_patterns(self) -> Dict[str, Any]:
         """
@@ -93,10 +95,18 @@ class TemporalCorrelationGroup:
 
         # Calculate consistency (how evenly distributed across gists)
         if self.gist_count > 0:
-            distribution = [self.cross_gist_spread[gist_id] for gist_id in self.gist_ids]
+            distribution = [
+                self.cross_gist_spread[gist_id] for gist_id in self.gist_ids
+            ]
             avg_per_gist = sum(distribution) / len(distribution)
-            variance = sum((x - avg_per_gist) ** 2 for x in distribution) / len(distribution)
-            patterns["consistency_score"] = max(0.0, 1.0 - (variance / (avg_per_gist * avg_per_gist))) if avg_per_gist > 0 else 0.0
+            variance = sum((x - avg_per_gist) ** 2 for x in distribution) / len(
+                distribution
+            )
+            patterns["consistency_score"] = (
+                max(0.0, 1.0 - (variance / (avg_per_gist * avg_per_gist)))
+                if avg_per_gist > 0
+                else 0.0
+            )
 
         # Re-exposure probability based on spread across multiple gists
         if len(self.gist_ids) > 1 and self.revision_count > 1:
@@ -200,7 +210,9 @@ class ContentSimilarityAnalyzer:
             and most_common_dir[0][1] >= len(directories) * 0.4
         ):
             result["pattern_type"] = "combined_pattern"
-            result["confidence"] = (most_common_ext[0][1] + most_common_dir[0][1]) / (len(extensions) + len(directories))
+            result["confidence"] = (most_common_ext[0][1] + most_common_dir[0][1]) / (
+                len(extensions) + len(directories)
+            )
 
         return result
 
@@ -290,7 +302,9 @@ class CorrelationAnalysisOrchestrator:
             if finding.value_hash not in groups:
                 groups[finding.value_hash] = TemporalCorrelationGroup(
                     value_hash=finding.value_hash,
-                    secret_type=finding.secret_type or finding.finding_type or "unknown",
+                    secret_type=finding.secret_type
+                    or finding.finding_type
+                    or "unknown",
                 )
 
             gist = gist_map.get(finding.gist_id)
@@ -390,25 +404,39 @@ class CorrelationAnalysisOrchestrator:
         multi_gist_groups = [g for g in groups if g.get("gist_count", 0) > 1]
         patterns["cross_gist_patterns"] = {
             "multi_gist_count": len(multi_gist_groups),
-            "multi_gist_percentage": (len(multi_gist_groups) / len(groups)) * 100 if groups else 0,
-            "average_findings_per_group": sum(g.get("finding_count", 0) for g in groups) / len(groups) if groups else 0,
+            "multi_gist_percentage": (len(multi_gist_groups) / len(groups)) * 100
+            if groups
+            else 0,
+            "average_findings_per_group": sum(g.get("finding_count", 0) for g in groups)
+            / len(groups)
+            if groups
+            else 0,
         }
 
         # Calculate prioritization risks
         prioritization_risks = []
         for group in groups:
-            if group.get("finding_count", 0) >= 5 and group.get("max_severity", "low") in ["critical", "high"]:
-                prioritization_risks.append({
-                    "value_hash": group["value_hash"],
-                    "risk_level": "high",
-                    "reason": f"Large campaign: {group.get('finding_count', 0)} findings with {group.get('max_severity')} severity",
-                })
-            elif group.get("max_severity", "low") == "critical" and group.get("gist_count", 0) >= 3:
-                prioritization_risks.append({
-                    "value_hash": group["value_hash"],
-                    "risk_level": "high",
-                    "reason": f"Multi-gist critical leak: {group.get('gist_count', 0)} gists with critical severity",
-                })
+            if group.get("finding_count", 0) >= 5 and group.get(
+                "max_severity", "low"
+            ) in ["critical", "high"]:
+                prioritization_risks.append(
+                    {
+                        "value_hash": group["value_hash"],
+                        "risk_level": "high",
+                        "reason": f"Large campaign: {group.get('finding_count', 0)} findings with {group.get('max_severity')} severity",
+                    }
+                )
+            elif (
+                group.get("max_severity", "low") == "critical"
+                and group.get("gist_count", 0) >= 3
+            ):
+                prioritization_risks.append(
+                    {
+                        "value_hash": group["value_hash"],
+                        "risk_level": "high",
+                        "reason": f"Multi-gist critical leak: {group.get('gist_count', 0)} gists with critical severity",
+                    }
+                )
 
         return {
             "total_correlation_groups": len(groups),

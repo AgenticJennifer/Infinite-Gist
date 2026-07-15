@@ -49,9 +49,7 @@ class ScanExecutor:
             scanner = GistScannerService(self.db)
             findings = await scanner.scan_github_account(schedule.github_account_id)
             scan_run.gists_scanned = (
-                self.db.query(Gist)
-                .filter(Gist.user_id == schedule.user_id)
-                .count()
+                self.db.query(Gist).filter(Gist.user_id == schedule.user_id).count()
             )
             scan_run.findings_count = len(findings)
             scan_run.status = "completed"
@@ -127,9 +125,7 @@ class ScanExecutor:
             scanner = GistScannerService(self.db)
             findings = await scanner.scan_github_account(github_account_id)
             scan_run.gists_scanned = (
-                self.db.query(Gist)
-                .filter(Gist.user_id == user_id)
-                .count()
+                self.db.query(Gist).filter(Gist.user_id == user_id).count()
             )
             scan_run.findings_count = len(findings)
             scan_run.status = "completed"

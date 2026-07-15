@@ -22,7 +22,9 @@ def _digest_to_response(report: DigestReport) -> dict:
         "id": report.id,
         "user_id": report.user_id,
         "report_type": report.report_type,
-        "period_start": report.period_start.isoformat() if report.period_start else None,
+        "period_start": report.period_start.isoformat()
+        if report.period_start
+        else None,
         "period_end": report.period_end.isoformat() if report.period_end else None,
         "summary": report.summary,
         "sent_at": report.sent_at.isoformat() if report.sent_at else None,
@@ -76,7 +78,9 @@ async def generate_digest(
 
         return _digest_to_response(report)
     except Exception:
-        logger.exception("Failed to generate %s digest for user %s", report_type, current_user.id)
+        logger.exception(
+            "Failed to generate %s digest for user %s", report_type, current_user.id
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate digest.",

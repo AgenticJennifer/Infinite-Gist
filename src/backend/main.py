@@ -25,7 +25,7 @@ app = FastAPI(
     title="Infinite Gist API",
     description="Security monitoring and remediation platform for GitHub Gists",
     version="0.2.0",
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
 
 # Set up CORS middleware
@@ -49,6 +49,7 @@ app.mount("/static", StaticFiles(directory=frontend_path), name="static")
 async def root():
     from fastapi.responses import FileResponse
     import os
+
     index_path = os.path.join(frontend_path, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
@@ -64,10 +65,7 @@ async def health_check(db: Session = Depends(get_db)):
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
-        raise HTTPException(
-            status_code=503,
-            detail="Database connection error"
-        )
+        raise HTTPException(status_code=503, detail="Database connection error")
 
 
 # Add exception handlers

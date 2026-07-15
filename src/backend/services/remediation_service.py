@@ -74,9 +74,11 @@ class RemediationService:
             self.db.commit()
 
             # 5. Get GitHub service
-            github_account = self.db.query(GitHubAccount).filter(
-                GitHubAccount.user_id == user_id
-            ).first()
+            github_account = (
+                self.db.query(GitHubAccount)
+                .filter(GitHubAccount.user_id == user_id)
+                .first()
+            )
             if not github_account:
                 raise ValueError("No GitHub account linked")
 
@@ -118,7 +120,11 @@ class RemediationService:
                 user_id=user_id,
                 event_type="remediation_failed",
                 event_description=f"Failed to make gist {gist.github_id} private: {str(e)}",
-                details={"action_id": action.id, "gist_id": gist.github_id, "error": str(e)},
+                details={
+                    "action_id": action.id,
+                    "gist_id": gist.github_id,
+                    "error": str(e),
+                },
             )
 
             raise
@@ -170,9 +176,11 @@ class RemediationService:
             self.db.commit()
 
             # 5. Get GitHub service
-            github_account = self.db.query(GitHubAccount).filter(
-                GitHubAccount.user_id == user_id
-            ).first()
+            github_account = (
+                self.db.query(GitHubAccount)
+                .filter(GitHubAccount.user_id == user_id)
+                .first()
+            )
             if not github_account:
                 raise ValueError("No GitHub account linked")
 
@@ -208,20 +216,22 @@ class RemediationService:
         except Exception as e:
             # Handle failure
             logger.error(f"Delete gist failed for gist {gist.github_id}: {e}")
-            
+
             # If GitHub delete succeeded but DB commit failed, we need to track this
             if github_delete_succeeded:
-                action.error_message = f"GitHub delete succeeded but DB update failed: {str(e)}"
+                action.error_message = (
+                    f"GitHub delete succeeded but DB update failed: {str(e)}"
+                )
                 logger.critical(
                     f"INCONSISTENT STATE: Gist {gist.github_id} deleted on GitHub "
                     f"but DB update failed. Manual intervention may be required."
                 )
             else:
                 action.error_message = str(e)
-            
+
             action.status = "failed"
             action.completed_at = datetime.now(timezone.utc)
-            
+
             try:
                 self.db.commit()
             except Exception as commit_err:
@@ -305,7 +315,9 @@ class RemediationService:
         """
         return (
             self.db.query(RemediationAction)
-            .filter(RemediationAction.id == action_id, RemediationAction.user_id == user_id)
+            .filter(
+                RemediationAction.id == action_id, RemediationAction.user_id == user_id
+            )
             .first()
         )
 

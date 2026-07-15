@@ -67,8 +67,7 @@ class GistInDBBase(GistBase):
     user_id: int
     last_scanned_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Gist(GistInDBBase):
@@ -100,8 +99,7 @@ class GistFileInDBBase(GistFileBase):
     gist_id: int
     content: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GistFile(GistFileInDBBase):
@@ -136,8 +134,7 @@ class ScanResultInDBBase(ScanResultBase):
     id: int
     gist_id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ScanResult(ScanResultInDBBase):
@@ -177,8 +174,7 @@ class SecretMatchInDBBase(SecretMatchBase):
     gist_file_id: int
     scan_id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SecretMatch(SecretMatchInDBBase):
@@ -222,6 +218,7 @@ class GitHubAccountScanRequest(BaseModel):
 
 
 # ---- Phase 2: Credible Detection response schemas ----
+
 
 class FindingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

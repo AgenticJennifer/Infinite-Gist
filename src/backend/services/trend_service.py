@@ -29,34 +29,54 @@ class TrendService:
         """
         today = date.today()
 
-        total_findings = self.db.query(Finding).filter(
-            Finding.gist.has(user_id=user_id)
-        ).count()
+        total_findings = (
+            self.db.query(Finding).filter(Finding.gist.has(user_id=user_id)).count()
+        )
 
-        critical_findings = self.db.query(Finding).filter(
-            Finding.gist.has(user_id=user_id),
-            Finding.severity == "critical",
-        ).count()
+        critical_findings = (
+            self.db.query(Finding)
+            .filter(
+                Finding.gist.has(user_id=user_id),
+                Finding.severity == "critical",
+            )
+            .count()
+        )
 
-        high_findings = self.db.query(Finding).filter(
-            Finding.gist.has(user_id=user_id),
-            Finding.severity == "high",
-        ).count()
+        high_findings = (
+            self.db.query(Finding)
+            .filter(
+                Finding.gist.has(user_id=user_id),
+                Finding.severity == "high",
+            )
+            .count()
+        )
 
-        medium_findings = self.db.query(Finding).filter(
-            Finding.gist.has(user_id=user_id),
-            Finding.severity == "medium",
-        ).count()
+        medium_findings = (
+            self.db.query(Finding)
+            .filter(
+                Finding.gist.has(user_id=user_id),
+                Finding.severity == "medium",
+            )
+            .count()
+        )
 
-        low_findings = self.db.query(Finding).filter(
-            Finding.gist.has(user_id=user_id),
-            Finding.severity == "low",
-        ).count()
+        low_findings = (
+            self.db.query(Finding)
+            .filter(
+                Finding.gist.has(user_id=user_id),
+                Finding.severity == "low",
+            )
+            .count()
+        )
 
-        remediated = self.db.query(RemediationAction).filter(
-            RemediationAction.user_id == user_id,
-            RemediationAction.status == "completed",
-        ).count()
+        remediated = (
+            self.db.query(RemediationAction)
+            .filter(
+                RemediationAction.user_id == user_id,
+                RemediationAction.status == "completed",
+            )
+            .count()
+        )
 
         trend = SecurityTrend(
             user_id=user_id,

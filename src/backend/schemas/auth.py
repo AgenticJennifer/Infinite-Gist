@@ -2,7 +2,7 @@
 Pydantic models for authentication.
 """
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from typing import Optional
 
 
@@ -10,8 +10,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TokenData(BaseModel):
@@ -40,8 +39,7 @@ class UserInDBBase(UserBase):
     id: int
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserInDB(UserInDBBase):
@@ -75,8 +73,7 @@ class GitHubAccountInDBBase(GitHubAccountBase):
     id: int
     user_id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GitHubAccountInDB(GitHubAccountInDBBase):

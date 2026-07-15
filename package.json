@@ -1,0 +1,7 @@
+{
+  "name": "infinite-gist-frontend",
+  "private": true,
+  "scripts": {
+    "test:frontend": "node --test tests/frontend/*.test.cjs"
+  }
+}

@@ -9,7 +9,6 @@ Security Notes:
 
 import base64
 import hashlib
-import hmac
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -29,9 +28,7 @@ from src.backend.db.models import User
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # OAuth2 scheme
-oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=f"{settings.API_V1_STR}/auth/token"
-)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/token")
 
 
 def verify_password(plain_password, hashed_password):
@@ -66,7 +63,9 @@ def create_oauth_state_token(expires_delta: Optional[timedelta] = None) -> str:
 def verify_oauth_state_token(state: str) -> bool:
     """Verify a state token returned from the OAuth callback. Returns True if valid."""
     try:
-        payload = jwt.decode(state, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            state, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
     except JWTError:
         return False
     return payload.get("purpose") == "oauth_state"
@@ -75,24 +74,20 @@ def verify_oauth_state_token(state: str) -> bool:
 def _derive_fernet_key(raw_key: str) -> bytes:
     """
     Derive a valid 32-byte urlsafe-base64 Fernet key from an arbitrary secret.
-    
+
     Uses PBKDF2-HMAC-SHA256 with:
     - 600,000 iterations (OWASP 2023 recommendation)
     - Fixed salt derived from the key itself (deterministic for consistent encryption)
-    
+
     This is significantly more secure than single-pass SHA-256 against rainbow table attacks.
     """
     # Use a fixed salt derived from the key name for determinism
     # This is acceptable because the key itself is secret
     salt = b"infinite-gist-encryption-salt-v1"
-    
+
     # PBKDF2 with 600,000 iterations (OWASP 2023 recommendation)
     dk = hashlib.pbkdf2_hmac(
-        'sha256',
-        raw_key.encode('utf-8'),
-        salt,
-        iterations=600000,
-        dklen=32
+        "sha256", raw_key.encode("utf-8"), salt, iterations=600000, dklen=32
     )
     return base64.urlsafe_b64encode(dk)
 

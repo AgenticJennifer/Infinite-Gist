@@ -27,9 +27,11 @@ class PolicyService:
         Returns:
             AccountPolicy record
         """
-        policy = self.db.query(AccountPolicy).filter(
-            AccountPolicy.user_id == user_id
-        ).first()
+        policy = (
+            self.db.query(AccountPolicy)
+            .filter(AccountPolicy.user_id == user_id)
+            .first()
+        )
 
         if not policy:
             policy = AccountPolicy(

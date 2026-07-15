@@ -12,12 +12,17 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from src.backend.db.models import (
-    Gist, GistFile, Finding,
+    Gist,
+    GistFile,
+    Finding,
     FindingStatus,
 )
 from src.backend.db.session import get_db
 from src.backend.core.config import settings
-from src.backend.services.github_service import GitHubService, get_github_service_for_account
+from src.backend.services.github_service import (
+    GitHubService,
+    get_github_service_for_account,
+)
 from src.backend.services.secret_scanner import SecretScanner, SecretMatch
 from src.backend.services.trufflehog_scanner import TruffleHogScanner
 from src.backend.services.severity_scorer import SeverityScorer
@@ -48,9 +53,11 @@ class GistScannerService:
         """Scan all gists for a GitHub account."""
         from src.backend.db.models import GitHubAccount
 
-        github_account = self.db.query(GitHubAccount).filter(
-            GitHubAccount.id == github_account_id
-        ).first()
+        github_account = (
+            self.db.query(GitHubAccount)
+            .filter(GitHubAccount.id == github_account_id)
+            .first()
+        )
 
         if not github_account:
             raise ValueError(f"GitHub account with ID {github_account_id} not found")
@@ -62,7 +69,9 @@ class GistScannerService:
         all_findings: List[Finding] = []
 
         for gist_data in gists:
-            findings = await self._scan_gist(gist_data, github_account, user, github_service)
+            findings = await self._scan_gist(
+                gist_data, github_account, user, github_service
+            )
             all_findings.extend(findings)
 
         return all_findings
@@ -91,7 +100,9 @@ class GistScannerService:
 
                 files_scanned += 1
                 gist_file = self._upsert_gist_file(gist.id, filename, file_data)
-                file_findings = await self._scan_file(content, filename, gist, gist_file)
+                file_findings = await self._scan_file(
+                    content, filename, gist, gist_file
+                )
                 findings.extend(file_findings)
 
             gist.last_synced_at = datetime.now(timezone.utc)
@@ -118,7 +129,9 @@ class GistScannerService:
         trufflehog_matches: List[SecretMatch] = []
         if self.trufflehog:
             try:
-                trufflehog_matches = await self.trufflehog.scan_content(content, filename)
+                trufflehog_matches = await self.trufflehog.scan_content(
+                    content, filename
+                )
             except Exception as e:
                 logger.warning("TruffleHog scan failed for %s: %s", filename, e)
 
@@ -139,10 +152,14 @@ class GistScannerService:
             severity, confidence_level = self.scorer.score(match)
             value_hash = SeverityScorer.compute_value_hash(match.matched_text)
 
-            existing = self.db.query(Finding).filter(
-                Finding.value_hash == value_hash,
-                Finding.gist_id == gist.id,
-            ).first()
+            existing = (
+                self.db.query(Finding)
+                .filter(
+                    Finding.value_hash == value_hash,
+                    Finding.gist_id == gist.id,
+                )
+                .first()
+            )
 
             if existing:
                 continue
@@ -159,7 +176,9 @@ class GistScannerService:
                 content_snippet=masked_context[:500],
                 finding_type=match.type.value,
                 secret_type=match.type.value,
-                severity=severity.value if hasattr(severity, 'value') else str(severity),
+                severity=severity.value
+                if hasattr(severity, "value")
+                else str(severity),
                 confidence=int(confidence * 100),
                 masked_value=masked_value,
                 value_hash=value_hash,
@@ -180,10 +199,14 @@ class GistScannerService:
         """Get or create a Gist DB record from GitHub API data."""
         github_id = gist_data["id"]
 
-        gist = self.db.query(Gist).filter(
-            Gist.github_id == github_id,
-            Gist.user_id == user_id,
-        ).first()
+        gist = (
+            self.db.query(Gist)
+            .filter(
+                Gist.github_id == github_id,
+                Gist.user_id == user_id,
+            )
+            .first()
+        )
 
         if not gist:
             gist = Gist(
@@ -208,12 +231,18 @@ class GistScannerService:
 
         return gist
 
-    def _upsert_gist_file(self, gist_id: int, filename: str, file_data: dict) -> GistFile:
+    def _upsert_gist_file(
+        self, gist_id: int, filename: str, file_data: dict
+    ) -> GistFile:
         """Get or create a GistFile DB record."""
-        gist_file = self.db.query(GistFile).filter(
-            GistFile.gist_id == gist_id,
-            GistFile.filename == filename,
-        ).first()
+        gist_file = (
+            self.db.query(GistFile)
+            .filter(
+                GistFile.gist_id == gist_id,
+                GistFile.filename == filename,
+            )
+            .first()
+        )
 
         if not gist_file:
             gist_file = GistFile(

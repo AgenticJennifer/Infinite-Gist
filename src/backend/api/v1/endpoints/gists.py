@@ -10,7 +10,14 @@ from sqlalchemy import func
 from src.backend.api.deps import get_current_active_user
 from src.backend.db.session import get_db
 from src.backend.db.models import (
-    User, GitHubAccount, Gist, GistFile, Finding, ScanResult, SeverityLevel, FindingStatus,
+    User,
+    GitHubAccount,
+    Gist,
+    GistFile,
+    Finding,
+    ScanResult,
+    SeverityLevel,
+    FindingStatus,
 )
 from src.backend.schemas.gists import (
     GistResponse,
@@ -34,8 +41,10 @@ from src.backend.services.trufflehog_scanner import TruffleHogScanner
 triage_service = TriageService()
 evidence_masker = EvidenceMasker()
 
+
 def correlation_analyzer(db=None):
     return FindingCorrelator(db)
+
 
 router = APIRouter()
 
@@ -100,7 +109,9 @@ async def get_scan_result(
     )
 
     if not scan:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found"
+        )
 
     return scan
 
@@ -135,7 +146,9 @@ async def get_gist(
     )
 
     if not gist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gist not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Gist not found"
+        )
 
     return gist
 
@@ -154,7 +167,9 @@ async def get_gist_files(
     )
 
     if not gist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gist not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Gist not found"
+        )
 
     return db.query(GistFile).filter(GistFile.gist_id == gist_id).all()
 
@@ -173,7 +188,9 @@ async def get_gist_findings(
     )
 
     if not gist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gist not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Gist not found"
+        )
 
     findings = db.query(Finding).filter(Finding.gist_id == gist_id).all()
     return [_finding_to_response(f) for f in findings]
@@ -193,7 +210,9 @@ async def get_temporal_analysis(
     )
 
     if not gist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gist not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Gist not found"
+        )
 
     analyzer = TemporalAnalyzer(db)
     analysis = analyzer.analyze(gist_id)
@@ -203,7 +222,9 @@ async def get_temporal_analysis(
         total_events=analysis.total_events,
         re_exposure_count=analysis.re_exposure_count,
         persistence_count=analysis.persistence_count,
-        posture_trend=analysis.posture_trend.value if hasattr(analysis.posture_trend, "value") else str(analysis.posture_trend),
+        posture_trend=analysis.posture_trend.value
+        if hasattr(analysis.posture_trend, "value")
+        else str(analysis.posture_trend),
         events=[
             {
                 "timestamp": e.timestamp,
@@ -258,11 +279,13 @@ async def get_finding_stats(
 ):
     # Use a subquery to filter findings by user's gists in a single query
     # This avoids N+1 pattern of fetching all gist IDs first
-    user_gist_subquery = db.query(Gist.id).filter(Gist.user_id == current_user.id).subquery()
+    user_gist_subquery = (
+        db.query(Gist.id).filter(Gist.user_id == current_user.id).subquery()
+    )
     base_q = db.query(Finding).filter(Finding.gist_id.in_(user_gist_subquery))
-    
+
     total = base_q.count()
-    
+
     if total == 0:
         return FindingStatsResponse(
             total_findings=0,
@@ -275,20 +298,26 @@ async def get_finding_stats(
     by_severity = {
         str(sev): cnt
         for sev, cnt in base_q.with_entities(Finding.severity, func.count(Finding.id))
-        .group_by(Finding.severity).all()
+        .group_by(Finding.severity)
+        .all()
     }
     by_type = {
         str(t): cnt
         for t, cnt in base_q.with_entities(Finding.secret_type, func.count(Finding.id))
-        .group_by(Finding.secret_type).all()
+        .group_by(Finding.secret_type)
+        .all()
         if t
     }
     by_status = {
         str(s): cnt
         for s, cnt in base_q.with_entities(Finding.status, func.count(Finding.id))
-        .group_by(Finding.status).all()
+        .group_by(Finding.status)
+        .all()
     }
-    avg_conf = base_q.with_entities(func.avg(Finding.confidence.cast(func.Float()))).scalar() or 0.0
+    avg_conf = (
+        base_q.with_entities(func.avg(Finding.confidence.cast(func.Float()))).scalar()
+        or 0.0
+    )
 
     return FindingStatsResponse(
         total_findings=total,
@@ -314,7 +343,9 @@ async def get_finding(
     )
 
     if not finding:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found"
+        )
 
     return _finding_to_response(finding)
 
@@ -335,7 +366,9 @@ async def update_finding_status(
     )
 
     if not finding:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found"
+        )
 
     try:
         finding.status = FindingStatus(new_status)
@@ -366,7 +399,9 @@ async def ignore_finding(
     )
 
     if not finding:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found"
+        )
 
     finding.status = FindingStatus.FALSE_POSITIVE
     db.add(finding)
@@ -387,7 +422,9 @@ def get_correlations(
         CorrelationGroupResponse(
             value_hash=g.value_hash,
             finding_count=g.finding_count,
-            severity=g.severity.value if hasattr(g.severity, "value") else str(g.severity),
+            severity=g.severity.value
+            if hasattr(g.severity, "value")
+            else str(g.severity),
             secret_type=g.secret_type or "unknown",
             gist_ids=g.gist_ids,
             first_detected=g.first_detected,
@@ -397,7 +434,9 @@ def get_correlations(
     ]
 
 
-@router.get("/findings/{finding_id}/correlations", response_model=List[CorrelationGroupResponse])
+@router.get(
+    "/findings/{finding_id}/correlations", response_model=List[CorrelationGroupResponse]
+)
 def get_finding_correlations(
     finding_id: int,
     current_user: User = Depends(get_current_active_user),
@@ -413,16 +452,23 @@ def get_finding_correlations(
     )
 
     if not finding:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found or access denied")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Finding not found or access denied",
+        )
 
     correlator = FindingCorrelator(db)
-    groups = correlator.find_correlations(finding_id=finding_id, user_id=current_user.id)
+    groups = correlator.find_correlations(
+        finding_id=finding_id, user_id=current_user.id
+    )
 
     return [
         CorrelationGroupResponse(
             value_hash=g.value_hash,
             finding_count=g.finding_count,
-            severity=g.severity.value if hasattr(g.severity, "value") else str(g.severity),
+            severity=g.severity.value
+            if hasattr(g.severity, "value")
+            else str(g.severity),
             secret_type=g.secret_type or "unknown",
             gist_ids=g.gist_ids,
             first_detected=g.first_detected,
@@ -443,8 +489,12 @@ def get_correlation_insights(
     return {
         "total_correlated_findings": insights.get("total_related_findings", 0),
         "active_correlation_campaigns": insights.get("total_related_findings", 0),
-        "dominant_secret_types": insights.get("patterns", {}).get("dominant_secret_types", {}),
-        "risk_distribution": insights.get("patterns", {}).get("severity_distribution", {}),
+        "dominant_secret_types": insights.get("patterns", {}).get(
+            "dominant_secret_types", {}
+        ),
+        "risk_distribution": insights.get("patterns", {}).get(
+            "severity_distribution", {}
+        ),
         "multi_gist_patterns": insights.get("cross_gist_patterns", {}),
     }
 
@@ -462,7 +512,7 @@ async def triage_findings_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Batch size {len(finding_ids)} exceeds maximum of {MAX_TRIAGE_BATCH_SIZE}",
         )
-    
+
     if not finding_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -479,7 +529,10 @@ async def triage_findings_endpoint(
     )
 
     if len(findings) != len(finding_ids):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Some findings not found or access denied")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Some findings not found or access denied",
+        )
 
     # Convert findings to SecretMatch objects for triage
     matches = []
@@ -487,18 +540,20 @@ async def triage_findings_endpoint(
         try:
             st = SecretType(f.secret_type) if f.secret_type else SecretType.API_KEY
         except ValueError:
-            st = ScannerSecretType.API_KEY
-        matches.append(SecretMatch(
-            type=st,
-            value=f.masked_value or "",
-            file_path=f.file_path or "",
-            line_number=f.line_start or 0,
-            column_start=0,
-            column_end=0,
-            confidence=(f.confidence or 0) / 100.0,
-            matched_text=f.masked_value or "",
-            context=f.content_snippet or "",
-        ))
+            st = SecretType.API_KEY
+        matches.append(
+            SecretMatch(
+                type=st,
+                value=f.masked_value or "",
+                file_path=f.file_path or "",
+                line_number=f.line_start or 0,
+                column_start=0,
+                column_end=0,
+                confidence=(f.confidence or 0) / 100.0,
+                matched_text=f.masked_value or "",
+                context=f.content_snippet or "",
+            )
+        )
 
     # triage_batch returns a dict of {verdict: [SecretMatch, ...]} lists
     triage_result = triage_service.triage_batch(matches)
@@ -516,7 +571,9 @@ def get_triage_status(
     db: Session = Depends(get_db),
 ):
     # Get user's gist IDs
-    user_gist_ids = [g.id for g in db.query(Gist.id).filter(Gist.user_id == current_user.id).all()]
+    user_gist_ids = [
+        g.id for g in db.query(Gist.id).filter(Gist.user_id == current_user.id).all()
+    ]
 
     if not user_gist_ids:
         return {
@@ -526,16 +583,33 @@ def get_triage_status(
                 "auto_triage_threshold": 0.75,
                 "manual_review_threshold": 0.35,
                 "escalation_threshold": 0.90,
-            }
+            },
         }
 
     # Calculate status from findings
-    pending_findings = db.query(Finding).filter(Finding.gist_id.in_(user_gist_ids)).count()
+    pending_findings = (
+        db.query(Finding).filter(Finding.gist_id.in_(user_gist_ids)).count()
+    )
 
     pending_by_confidence = []
-    borderline_count = db.query(Finding).filter(Finding.gist_id.in_(user_gist_ids)).filter(Finding.confidence.between(0.35, 0.75)).count()
-    high_confidence = db.query(Finding).filter(Finding.gist_id.in_(user_gist_ids)).filter(Finding.confidence >= 0.75).count()
-    low_confidence = db.query(Finding).filter(Finding.gist_id.in_(user_gist_ids)).filter(Finding.confidence < 0.35).count()
+    borderline_count = (
+        db.query(Finding)
+        .filter(Finding.gist_id.in_(user_gist_ids))
+        .filter(Finding.confidence.between(0.35, 0.75))
+        .count()
+    )
+    high_confidence = (
+        db.query(Finding)
+        .filter(Finding.gist_id.in_(user_gist_ids))
+        .filter(Finding.confidence >= 0.75)
+        .count()
+    )
+    low_confidence = (
+        db.query(Finding)
+        .filter(Finding.gist_id.in_(user_gist_ids))
+        .filter(Finding.confidence < 0.35)
+        .count()
+    )
 
     pending_by_confidence = [
         {"range": "low (under 0.35)", "count": low_confidence},
@@ -550,7 +624,7 @@ def get_triage_status(
             "auto_triage_threshold": 0.75,
             "manual_review_threshold": 0.35,
             "escalation_threshold": 0.90,
-        }
+        },
     }
 
 
@@ -571,7 +645,10 @@ async def update_triage_verdict(
     )
 
     if not finding:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found or access denied")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Finding not found or access denied",
+        )
 
     # Update finding status based on verdict
     if verdict == "accept":
@@ -581,7 +658,10 @@ async def update_triage_verdict(
     elif verdict == "escalate":
         finding.status = FindingStatus.ESCALATED
     else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid verdict: {verdict}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid verdict: {verdict}",
+        )
 
     db.add(finding)
     db.commit()
@@ -611,7 +691,10 @@ async def mask_finding_evidence(
     )
 
     if not finding:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found or access denied")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Finding not found or access denied",
+        )
 
     # Convert finding to SecretMatch for masking
     masked_result = evidence_masker.create_masked_evidence(

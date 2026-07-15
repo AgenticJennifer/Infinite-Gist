@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 class TemporalEvent:
     """Represents a point-in-time event for a finding."""
+
     def __init__(
         self,
         finding_id: int,
@@ -46,7 +47,7 @@ class TemporalAnalysis:
         self.re_exposures: List[Dict[str, Any]] = []
         self.persistence_counts: Dict[str, int] = {}  # value_hash → revision count
         self.first_seen: Dict[str, datetime] = {}  # value_hash → first detection
-        self.last_seen: Dict[str, datetime] = {}   # value_hash → last detection
+        self.last_seen: Dict[str, datetime] = {}  # value_hash → last detection
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -126,36 +127,46 @@ class TemporalAnalyzer:
                 if entry["status"] == "fixed" and entry["detected_at"]:
                     fixed_time = entry["detected_at"]
 
-                if fixed_time and entry["detected_at"] and entry["detected_at"] > fixed_time:
+                if (
+                    fixed_time
+                    and entry["detected_at"]
+                    and entry["detected_at"] > fixed_time
+                ):
                     # Secret re-appeared after being fixed
-                    analysis.re_exposures.append({
-                        "value_hash": value_hash,
-                        "original_fixed_at": fixed_time.isoformat(),
-                        "re_exposed_at": entry["detected_at"].isoformat(),
-                        "finding_id": entry["finding_id"],
-                        "severity": entry["severity"],
-                    })
+                    analysis.re_exposures.append(
+                        {
+                            "value_hash": value_hash,
+                            "original_fixed_at": fixed_time.isoformat(),
+                            "re_exposed_at": entry["detected_at"].isoformat(),
+                            "finding_id": entry["finding_id"],
+                            "severity": entry["severity"],
+                        }
+                    )
                     # Record event
-                    analysis.events.append(TemporalEvent(
-                        finding_id=entry["finding_id"],
-                        value_hash=value_hash,
-                        event_type="re_exposed",
-                        timestamp=entry["detected_at"],
-                        gist_id=gist_id,
-                        severity=entry["severity"],
-                    ))
+                    analysis.events.append(
+                        TemporalEvent(
+                            finding_id=entry["finding_id"],
+                            value_hash=value_hash,
+                            event_type="re_exposed",
+                            timestamp=entry["detected_at"],
+                            gist_id=gist_id,
+                            severity=entry["severity"],
+                        )
+                    )
                     fixed_time = None  # Only record the first re-exposure
 
             # Record first_seen event
             if entries[0]["detected_at"]:
-                analysis.events.append(TemporalEvent(
-                    finding_id=entries[0]["finding_id"],
-                    value_hash=value_hash,
-                    event_type="first_seen",
-                    timestamp=entries[0]["detected_at"],
-                    gist_id=gist_id,
-                    severity=entries[0]["severity"],
-                ))
+                analysis.events.append(
+                    TemporalEvent(
+                        finding_id=entries[0]["finding_id"],
+                        value_hash=value_hash,
+                        event_type="first_seen",
+                        timestamp=entries[0]["detected_at"],
+                        gist_id=gist_id,
+                        severity=entries[0]["severity"],
+                    )
+                )
 
         return analysis
 
@@ -200,10 +211,16 @@ class TemporalAnalyzer:
         trend = "stable"
         if len(dates_sorted) >= 2:
             recent_dates = dates_sorted[-7:]
-            older_dates = dates_sorted[-14:-7] if len(dates_sorted) >= 14 else dates_sorted[:len(dates_sorted)//2]
+            older_dates = (
+                dates_sorted[-14:-7]
+                if len(dates_sorted) >= 14
+                else dates_sorted[: len(dates_sorted) // 2]
+            )
 
             recent_count = sum(findings_by_date[d] for d in recent_dates)
-            older_count = sum(findings_by_date[d] for d in older_dates) if older_dates else 0
+            older_count = (
+                sum(findings_by_date[d] for d in older_dates) if older_dates else 0
+            )
 
             if recent_count > older_count * 1.5 and older_count > 0:
                 trend = "worsening"

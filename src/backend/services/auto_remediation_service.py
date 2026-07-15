@@ -58,9 +58,7 @@ class AutoRemediationService:
             return action
 
         except Exception as e:
-            logger.error(
-                f"Auto-remediation failed for finding {finding.id}: {e}"
-            )
+            logger.error(f"Auto-remediation failed for finding {finding.id}: {e}")
             await self.audit_service.log_event(
                 user_id=user_id,
                 event_type="auto_remediation_failed",

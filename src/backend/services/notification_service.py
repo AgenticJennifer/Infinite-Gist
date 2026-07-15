@@ -18,7 +18,6 @@ from src.backend.db.models import (
 logger = logging.getLogger(__name__)
 
 
-
 class NotificationService:
     """Service for sending notifications about remediation events."""
 
@@ -40,7 +39,8 @@ class NotificationService:
         logger.warning(
             "NotificationService.send_email is a STUB — not delivering real email "
             "to %s (subject: %s). Wire a real provider before relying on this.",
-            to, subject,
+            to,
+            subject,
         )
         return True
 
@@ -57,7 +57,8 @@ class NotificationService:
         """
         logger.warning(
             "NotificationService.send_webhook is a STUB — not delivering real webhook "
-            "to %s. Wire a real provider before relying on this.", url,
+            "to %s. Wire a real provider before relying on this.",
+            url,
         )
         return True
 

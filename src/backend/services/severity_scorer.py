@@ -19,9 +19,10 @@ from src.backend.db.models import SeverityLevel
 
 class ConfidenceLevel(str, Enum):
     """Classification of finding confidence."""
-    DEFINITE = "definite"     # Verified or pattern-matched with high entropy
-    PROBABLE = "probable"     # Strong pattern match with context support
-    POSSIBLE = "possible"    # Weak pattern match, may be false positive
+
+    DEFINITE = "definite"  # Verified or pattern-matched with high entropy
+    PROBABLE = "probable"  # Strong pattern match with context support
+    POSSIBLE = "possible"  # Weak pattern match, may be false positive
 
 
 # Secret type → severity tier mapping

@@ -25,6 +25,7 @@ class ScannerStatus:
     scanner_path: str
     capabilities: list[str] = field(default_factory=list)
 
+
 # Mapping from TruffleHog detector names to our SecretType enum
 TRUFFLEHOG_TYPE_MAP: Dict[str, SecretType] = {
     "AWS": SecretType.AWS_ACCESS_KEY,
@@ -65,7 +66,8 @@ class TruffleHogScanner:
 
         try:
             proc = await asyncio.create_subprocess_exec(
-                self.trufflehog_path, "--version",
+                self.trufflehog_path,
+                "--version",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -101,22 +103,34 @@ class TruffleHogScanner:
 
             # Initialize as a git repo so TruffleHog can scan it
             git_init = await asyncio.create_subprocess_exec(
-                "git", "init", target_dir,
+                "git",
+                "init",
+                target_dir,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
             await git_init.wait()
 
             git_add = await asyncio.create_subprocess_exec(
-                "git", "-C", target_dir, "add", ".",
+                "git",
+                "-C",
+                target_dir,
+                "add",
+                ".",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
             await git_add.wait()
 
             git_commit = await asyncio.create_subprocess_exec(
-                "git", "-C", target_dir, "commit", "-m", "scan",
-                "--author", "scanner <scanner@localhost>",
+                "git",
+                "-C",
+                target_dir,
+                "commit",
+                "-m",
+                "scan",
+                "--author",
+                "scanner <scanner@localhost>",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -144,7 +158,11 @@ class TruffleHogScanner:
                 return []
 
             if proc.returncode not in (0, 1):  # 0 = no findings, 1 = findings found
-                logger.warning("TruffleHog exited with code %d: %s", proc.returncode, stderr.decode()[:500])
+                logger.warning(
+                    "TruffleHog exited with code %d: %s",
+                    proc.returncode,
+                    stderr.decode()[:500],
+                )
                 return []
 
             # Parse JSON output
@@ -218,7 +236,10 @@ class TruffleHogScanner:
     @staticmethod
     def scan_account(github_account_id: int) -> None:
         """Dummy scan account — real implementation in future."""
-        logger.info("TruffleHog scan_account called for account %d (not yet implemented)", github_account_id)
+        logger.info(
+            "TruffleHog scan_account called for account %d (not yet implemented)",
+            github_account_id,
+        )
 
     @staticmethod
     def _map_detector_type(detector_name: str) -> SecretType:

@@ -13,11 +13,19 @@ Infinite Gist holds two categories of sensitive data on behalf of users:
 
 The design goal is: a compromise of the database or an API response should never hand an attacker a usable credential.
 
+### Raw-secret lifecycle and trust boundary
+
+Raw Gist content enters the scanner pipeline in process memory. Regex and optional TruffleHog scanners may hold a detected value long enough to classify, triage, score, mask, and fingerprint it. Raw values must not cross the pipeline boundary into database models, API responses, application logs, or browser-rendered evidence.
+
+Before persistence, `GistScannerService` replaces the value and surrounding context with masked evidence and computes a keyed HMAC-SHA256 fingerprint using the server-side `SECRET_KEY`. Only the mask and fingerprint are stored. The HMAC supports correlation and deduplication without making low-entropy secrets practical to verify offline from a database dump.
+
+When TruffleHog is enabled, the pipeline writes Gist content to a process-owned temporary directory because the scanner operates on filesystem input. The directory is deleted when the scan exits, including normal exception unwinding. During that scan, raw content temporarily exists on the application host's filesystem, so the host, temporary directory, backups, and swap are inside the trusted boundary. Production deployments should restrict host access, avoid collecting temporary directories in backups, and use encrypted storage or ephemeral disks where required by policy.
+
 ### Mitigations in place
 
 | Risk | Mitigation |
 |------|------------|
-| Raw secrets at rest | Findings store a masked value (`evidence_masker`) and a keyed HMAC-SHA256 fingerprint (`severity_scorer.compute_value_hash`) — never the raw secret — so correlation across Gists doesn't require persisting plaintext. |
+| Raw secrets at rest | Findings store a masked value (`evidence_masker`) and a keyed HMAC-SHA256 fingerprint (`severity_scorer.compute_value_hash`), never the raw secret, so correlation across Gists does not require persisting plaintext. |
 | GitHub tokens at rest | Encrypted with Fernet before storage (`core/security.py`); the encryption key is derived via a SHA-256 KDF rather than truncated/zero-padded. |
 | OAuth login CSRF | The `state` parameter is a signed, expiring JWT (`create_oauth_state_token`/`verify_oauth_state_token`), not a static string. |
 | Cross-user data access (IDOR) | Every schedule/finding/remediation-action lookup is scoped to `user_id` at the query layer, not checked after the fact. |

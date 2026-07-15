@@ -2,7 +2,17 @@
 Database models for Infinite Gist application.
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Date, Enum
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Text,
+    Date,
+    Enum,
+)
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime, timezone
 import enum
@@ -64,7 +74,7 @@ class GitHubAccount(Base):
     scope = Column(String)
     created_at = Column(DateTime, default=_now)
     updated_at = Column(DateTime, default=_now, onupdate=_now)
-    
+
     # Relationship
     user = relationship("User", backref="github_accounts")
 
@@ -96,7 +106,7 @@ class GistFile(Base):
     content = Column(Text)
     language = Column(String)
     size = Column(Integer)
-    
+
     # Relationship
     gist = relationship("Gist", backref="files")
 
@@ -109,7 +119,7 @@ class GistRevision(Base):
     version = Column(String, nullable=False)  # GitHub uses SHA for versions
     committed_at = Column(DateTime)
     # We'll store file contents for each revision or just reference them
-    
+
     # Relationship
     gist = relationship("Gist", backref="revisions")
 
@@ -121,7 +131,7 @@ class Finding(Base):
     gist_id = Column(Integer, ForeignKey("gists.id"), nullable=False, index=True)
     gist_file_id = Column(Integer, ForeignKey("gist_files.id"))
     gist_revision_id = Column(Integer, ForeignKey("gist_revisions.id"))
-    
+
     # Finding details
     file_path = Column(String)
     line_start = Column(Integer)
@@ -129,19 +139,21 @@ class Finding(Base):
     content_snippet = Column(Text)  # Limited excerpt for context
     finding_type = Column(String)  # e.g., "aws_key", "private_key", "password"
     secret_type = Column(String)  # More specific categorization
-    
+
     # Risk assessment
     severity = Column(Enum(SeverityLevel), nullable=False)
     confidence = Column(Integer)  # 0-100
-    
+
     # Evidence (masked for security)
     masked_value = Column(String)  # First/last chars with asterisks in middle
-    value_hash = Column(String, unique=True, index=True)  # Hash of original for deduplication
-    
+    value_hash = Column(
+        String, unique=True, index=True
+    )  # Hash of original for deduplication
+
     # Metadata
     detected_at = Column(DateTime, default=_now)
     status = Column(Enum(FindingStatus), default=FindingStatus.NEW)
-    
+
     # Relationships
     gist = relationship("Gist", backref="findings")
     gist_file = relationship("GistFile", backref="findings")
@@ -158,7 +170,7 @@ class ScanRun(Base):
     status = Column(String)  # "running", "completed", "failed"
     gists_scanned = Column(Integer, default=0)
     findings_count = Column(Integer, default=0)
-    
+
     # Relationship
     user = relationship("User", backref="scan_runs")
 
@@ -224,7 +236,9 @@ class ScanSchedule(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    github_account_id = Column(Integer, ForeignKey("github_accounts.id"), nullable=False)
+    github_account_id = Column(
+        Integer, ForeignKey("github_accounts.id"), nullable=False
+    )
     frequency = Column(String, nullable=False)  # "daily", "weekly", "custom"
     cron_expression = Column(String)
     enabled = Column(Boolean, default=True, index=True)

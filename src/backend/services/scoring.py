@@ -9,19 +9,25 @@ ranking of secret findings.
 from typing import Tuple
 from enum import IntEnum
 
-from src.backend.services.severity_scorer import SeverityScorer, ConfidenceLevel, SeverityLevel
+from src.backend.services.severity_scorer import (
+    SeverityScorer,
+    ConfidenceLevel,
+    SeverityLevel,
+)
 from src.backend.services.secret_scanner import SecretMatch
 
 
 class ConfidenceCategory(IntEnum):
     """High/Medium/Low confidence levels for Phase 2 workflow."""
-    HIGH = 3     # 0.85-1.0 confidence (DEFINITE)
-    MEDIUM = 2   # 0.65-0.84 confidence (PROBABLE)
-    LOW = 1      # < 0.65 confidence (POSSIBLE)
+
+    HIGH = 3  # 0.85-1.0 confidence (DEFINITE)
+    MEDIUM = 2  # 0.65-0.84 confidence (PROBABLE)
+    LOW = 1  # < 0.65 confidence (POSSIBLE)
 
 
 class ScoringType:
     """Scoring categories for risk assessment."""
+
     IMMEDIATE_THREAT = "immediate_threat"
     SIGNIFICANT_RISK = "significant_risk"
     LOW_PRIORITY = "low_priority"
@@ -45,7 +51,9 @@ class EnhancedSeverityScorer(SeverityScorer):
         score_type = self._determine_score_type(base_severity, confidence_category)
 
         # Adjust severity based on both context and confidence category for enhanced scoring
-        severity = self._adjust_severity_enhanced(base_severity, match, confidence_category, score_type)
+        severity = self._adjust_severity_enhanced(
+            base_severity, match, confidence_category, score_type
+        )
 
         return severity, confidence_level, confidence_category, score_type
 
@@ -62,9 +70,15 @@ class EnhancedSeverityScorer(SeverityScorer):
         self, severity: SeverityLevel, category: ConfidenceCategory
     ) -> str:
         """Determine overall score type based on severity and confidence."""
-        if severity == SeverityLevel.CRITICAL and category in (ConfidenceCategory.HIGH, ConfidenceCategory.MEDIUM):
+        if severity == SeverityLevel.CRITICAL and category in (
+            ConfidenceCategory.HIGH,
+            ConfidenceCategory.MEDIUM,
+        ):
             return ScoringType.IMMEDIATE_THREAT
-        elif severity in (SeverityLevel.CRITICAL, SeverityLevel.HIGH) and category == ConfidenceCategory.HIGH:
+        elif (
+            severity in (SeverityLevel.CRITICAL, SeverityLevel.HIGH)
+            and category == ConfidenceCategory.HIGH
+        ):
             return ScoringType.IMMEDIATE_THREAT
         elif severity in (SeverityLevel.HIGH, SeverityLevel.MEDIUM):
             return ScoringType.SIGNIFICANT_RISK

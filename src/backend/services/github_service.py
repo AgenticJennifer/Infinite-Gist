@@ -39,11 +39,11 @@ class GitHubService:
             url = f"{self.BASE_URL}/users/{username}/gists"
         else:
             url = f"{self.BASE_URL}/gists"
-        
+
         all_gists = []
         page = 1
         per_page = 100  # Maximum per page
-        
+
         while True:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
@@ -53,18 +53,18 @@ class GitHubService:
                 )
                 response.raise_for_status()
                 gists = response.json()
-                
+
                 if not gists:
                     break
-                    
+
                 all_gists.extend(gists)
-                
+
                 # Check if we got fewer than requested (last page)
                 if len(gists) < per_page:
                     break
-                    
+
                 page += 1
-                
+
         return all_gists
 
     async def get_gist(self, gist_id: str) -> dict:

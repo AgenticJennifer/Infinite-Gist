@@ -17,7 +17,8 @@ from src.backend.services.trufflehog_scanner import TruffleHogScanner
 from src.backend.services.severity_scorer import SeverityScorer
 from src.backend.services.evidence_masker import EvidenceMasker
 from src.backend.db.models import (
-    GistRevision, Finding,
+    GistRevision,
+    Finding,
 )
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,9 @@ class RevisionScanner:
         # Process each commit/revision
         for commit in commits:
             commit_sha = commit.get("version", commit.get("sha", ""))
-            committed_at_str = commit.get("committed_at", commit.get("committed_at", ""))
+            committed_at_str = commit.get(
+                "committed_at", commit.get("committed_at", "")
+            )
 
             # Parse timestamp
             committed_at = None
@@ -86,14 +89,20 @@ class RevisionScanner:
                 # we'd need the raw URL or use git clone. For now, scan what we have.
                 # A full implementation would use git clone + checkout of each SHA.
             except Exception as e:
-                logger.debug("Could not fetch gist %s at revision %s: %s", gist_id, commit_sha, e)
+                logger.debug(
+                    "Could not fetch gist %s at revision %s: %s", gist_id, commit_sha, e
+                )
                 continue
 
             # Record the revision in the database
-            db_revision = db.query(GistRevision).filter(
-                GistRevision.gist_id == db_gist_id,
-                GistRevision.version == commit_sha,
-            ).first()
+            db_revision = (
+                db.query(GistRevision)
+                .filter(
+                    GistRevision.gist_id == db_gist_id,
+                    GistRevision.version == commit_sha,
+                )
+                .first()
+            )
 
             if not db_revision:
                 db_revision = GistRevision(
@@ -130,9 +139,11 @@ class RevisionScanner:
                     value_hash = self.scorer.compute_value_hash(match.matched_text)
 
                     # Check for existing finding with same hash
-                    existing = db.query(Finding).filter(
-                        Finding.value_hash == value_hash
-                    ).first()
+                    existing = (
+                        db.query(Finding)
+                        .filter(Finding.value_hash == value_hash)
+                        .first()
+                    )
 
                     if existing:
                         continue  # Dedup: don't re-record the same secret
@@ -159,7 +170,9 @@ class RevisionScanner:
                         "detected_at": datetime.now(timezone.utc),
                         "revision_sha": commit_sha,
                         "committed_at": committed_at,
-                        "scanner": "trufflehog" if match in trufflehog_matches else "regex",
+                        "scanner": "trufflehog"
+                        if match in trufflehog_matches
+                        else "regex",
                     }
                     all_findings.append(finding_dict)
 

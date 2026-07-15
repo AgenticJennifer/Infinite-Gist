@@ -26,8 +26,12 @@ def _schedule_to_response(schedule: ScanSchedule) -> dict:
         "frequency": schedule.frequency,
         "cron_expression": schedule.cron_expression,
         "enabled": schedule.enabled,
-        "last_run_at": schedule.last_run_at.isoformat() if schedule.last_run_at else None,
-        "next_run_at": schedule.next_run_at.isoformat() if schedule.next_run_at else None,
+        "last_run_at": schedule.last_run_at.isoformat()
+        if schedule.last_run_at
+        else None,
+        "next_run_at": schedule.next_run_at.isoformat()
+        if schedule.next_run_at
+        else None,
         "created_at": schedule.created_at.isoformat() if schedule.created_at else None,
     }
 

@@ -70,7 +70,9 @@ class SchedulerService:
 
         return schedule
 
-    async def update_schedule(self, schedule_id: int, user_id: int, **kwargs) -> ScanSchedule:
+    async def update_schedule(
+        self, schedule_id: int, user_id: int, **kwargs
+    ) -> ScanSchedule:
         """
         Update an existing scan schedule owned by the given user.
 
@@ -83,10 +85,14 @@ class SchedulerService:
         Returns:
             Updated ScanSchedule record
         """
-        schedule = self.db.query(ScanSchedule).filter(
-            ScanSchedule.id == schedule_id,
-            ScanSchedule.user_id == user_id,
-        ).first()
+        schedule = (
+            self.db.query(ScanSchedule)
+            .filter(
+                ScanSchedule.id == schedule_id,
+                ScanSchedule.user_id == user_id,
+            )
+            .first()
+        )
         if not schedule:
             raise ValueError(f"Schedule {schedule_id} not found")
 
@@ -126,10 +132,14 @@ class SchedulerService:
         Returns:
             True if deleted, False if not found (or not owned by user_id)
         """
-        schedule = self.db.query(ScanSchedule).filter(
-            ScanSchedule.id == schedule_id,
-            ScanSchedule.user_id == user_id,
-        ).first()
+        schedule = (
+            self.db.query(ScanSchedule)
+            .filter(
+                ScanSchedule.id == schedule_id,
+                ScanSchedule.user_id == user_id,
+            )
+            .first()
+        )
         if not schedule:
             return False
 
@@ -181,9 +191,9 @@ class SchedulerService:
         Returns:
             Updated ScanSchedule record
         """
-        schedule = self.db.query(ScanSchedule).filter(
-            ScanSchedule.id == schedule_id
-        ).first()
+        schedule = (
+            self.db.query(ScanSchedule).filter(ScanSchedule.id == schedule_id).first()
+        )
         if not schedule:
             raise ValueError(f"Schedule {schedule_id} not found")
 

@@ -19,9 +19,10 @@ logger = logging.getLogger(__name__)
 
 class TriageVerdict(str, Enum):
     """Result of triage for a borderline finding."""
-    ACCEPT = "accept"           # Likely true positive
-    REJECT = "reject"           # Likely false positive
-    ESCALATE = "escalate"       # Cannot determine automatically
+
+    ACCEPT = "accept"  # Likely true positive
+    REJECT = "reject"  # Likely false positive
+    ESCALATE = "escalate"  # Cannot determine automatically
 
 
 # Triage thresholds
@@ -32,7 +33,7 @@ TRIAGE_HIGH = 0.7
 FALSE_POSITIVE_PATTERNS = [
     re.compile(r"example|sample|test|dummy|fake|placeholder|todo", re.IGNORECASE),
     re.compile(r"^\s*#\s*(comment|todo|fixme)", re.IGNORECASE),
-    re.compile(r"<[^>]+>"),     # HTML/template placeholders
+    re.compile(r"<[^>]+>"),  # HTML/template placeholders
     re.compile(r"\$\{[^}]+\}"),  # Template variables like ${API_KEY}
     re.compile(r"xxx+|aaa+|bbb+|123+|000+"),  # Placeholder sequences
 ]
@@ -49,7 +50,16 @@ TRUE_POSITIVE_INDICATORS = {
 }
 
 # File extensions where secrets are more likely to be real
-HIGH_RISK_EXTENSIONS = {".env", ".cfg", ".conf", ".ini", ".yaml", ".yml", ".json", ".toml"}
+HIGH_RISK_EXTENSIONS = {
+    ".env",
+    ".cfg",
+    ".conf",
+    ".ini",
+    ".yaml",
+    ".yml",
+    ".json",
+    ".toml",
+}
 
 # File extensions where secrets are often placeholders
 LOW_RISK_EXTENSIONS = {".md", ".txt", ".rst", ".doc", ".example", ".sample"}
@@ -122,9 +132,7 @@ class TriageService:
         else:
             return TriageVerdict.ESCALATE
 
-    def triage_batch(
-        self, matches: List[SecretMatch]
-    ) -> dict[str, List[SecretMatch]]:
+    def triage_batch(self, matches: List[SecretMatch]) -> dict[str, List[SecretMatch]]:
         """
         Triage a batch of borderline findings.
 
@@ -168,6 +176,7 @@ class TriageService:
 
         from collections import Counter
         import math
+
         counts = Counter(text)
         length = len(text)
         entropy = 0.0

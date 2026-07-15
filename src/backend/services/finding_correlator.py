@@ -122,7 +122,9 @@ class FindingCorrelator:
             if finding.value_hash not in groups:
                 groups[finding.value_hash] = CorrelationGroup(
                     value_hash=finding.value_hash,
-                    secret_type=finding.secret_type or finding.finding_type or "unknown",
+                    secret_type=finding.secret_type
+                    or finding.finding_type
+                    or "unknown",
                 )
 
             groups[finding.value_hash].add_finding(
@@ -170,9 +172,13 @@ class FindingCorrelator:
             target = query.filter(Finding.id == finding_id).first()
             if not target or not target.value_hash:
                 return []
-            query = session.query(Finding).join(Gist).filter(
-                Gist.user_id == user_id,
-                Finding.value_hash == target.value_hash,
+            query = (
+                session.query(Finding)
+                .join(Gist)
+                .filter(
+                    Gist.user_id == user_id,
+                    Finding.value_hash == target.value_hash,
+                )
             )
 
         findings = query.order_by(Finding.detected_at.asc()).all()

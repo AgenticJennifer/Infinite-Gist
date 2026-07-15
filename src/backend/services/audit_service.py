@@ -57,7 +57,7 @@ class AuditService:
         )
 
         self.db.add(event)
-        
+
         # Flush to ensure the event is written to the DB session before commit.
         # This catches constraint violations and other DB errors early.
         try:
