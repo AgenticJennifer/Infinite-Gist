@@ -53,13 +53,33 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
         self.max_bytes = max_bytes
 
     async def dispatch(self, request: Request, call_next):
-        content_length = request.headers.get("content-length")
+        # Only enforce on requests that may carry a body.
+        if request.method in {"GET", "HEAD", "OPTIONS", "TRACE"}:
+            return await call_next(request)
 
-        if content_length and int(content_length) > self.max_bytes:
-            return JSONResponse(
-                status_code=413,
-                content={"detail": "Request body too large"},
-            )
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > self.max_bytes:
+                    return JSONResponse(
+                        status_code=413,
+                        content={"detail": "Request body too large"},
+                    )
+            except ValueError:
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "Invalid Content-Length header"},
+                )
+        else:
+            # No Content-Length (chunked transfer or absent): enforce by
+            # buffering the body. Starlette caches it, so downstream handlers
+            # can still read it.
+            body = await request.body()
+            if len(body) > self.max_bytes:
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": "Request body too large"},
+                )
 
         return await call_next(request)
 

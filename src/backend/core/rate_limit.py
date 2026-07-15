@@ -10,7 +10,7 @@ import time
 from collections import defaultdict, deque
 from threading import Lock
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 
 from src.backend.api.deps import get_current_active_user
 from src.backend.db.models import User
@@ -47,3 +47,16 @@ def enforce_remediation_rate_limit(
     current_user: User = Depends(get_current_active_user),
 ) -> None:
     remediation_rate_limiter.check(str(current_user.id))
+
+
+# Login endpoint: at most 20 attempts per client per minute.
+# Brute-force / username-enumeration defense. Keyed by client IP (or the first
+# X-Forwarded-For hop when behind a proxy) since no user is authenticated yet.
+login_rate_limiter = RateLimiter(max_calls=20, window_seconds=60)
+
+
+def enforce_login_rate_limit(request: Request) -> None:
+    client = request.client.host if request.client else "unknown"
+    forwarded = request.headers.get("x-forwarded-for")
+    key = forwarded.split(",")[0].strip() if forwarded else client
+    login_rate_limiter.check(f"login:{key}")

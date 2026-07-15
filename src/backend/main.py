@@ -16,6 +16,13 @@ from src.backend.api.v1.api import api_router
 from src.backend.core.config import settings
 from src.backend.core.logging import setup_logging
 from src.backend.db.session import get_db
+import os
+
+from src.backend.middleware.security import (
+    SecurityHeadersMiddleware,
+    RequestSizeLimitMiddleware,
+    CSRFProtectionMiddleware,
+)
 
 # Configure structured logging (JSON in production, plain in dev)
 setup_logging()
@@ -34,15 +41,30 @@ if settings.BACKEND_CORS_ORIGINS:
         CORSMiddleware,
         allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allow_headers=["Authorization", "Content-Type", "Accept"],
     )
+
+# Security middleware. Order matters: the last added wraps outermost.
+# RequestSizeLimit must reject oversized bodies before any further processing;
+# CSRF protects state-changing requests; SecurityHeaders only annotates responses.
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(CSRFProtectionMiddleware)
+app.add_middleware(RequestSizeLimitMiddleware)
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-frontend_path = "src/frontend"
-app.mount("/static", StaticFiles(directory=frontend_path), name="static")
+_backend_dir = os.path.dirname(os.path.abspath(__file__))
+frontend_path = os.path.abspath(
+    os.path.join(_backend_dir, "..", "..", "src", "frontend")
+)
+if os.path.isdir(frontend_path):
+    app.mount("/static", StaticFiles(directory=frontend_path), name="static")
+else:
+    logger.warning(
+        "Frontend directory %s not found; skipping /static mount", frontend_path
+    )
 
 
 @app.get("/")

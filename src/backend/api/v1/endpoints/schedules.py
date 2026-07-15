@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from src.backend.api.deps import get_current_active_user
 from src.backend.db.session import get_db
-from src.backend.db.models import User, ScanSchedule
+from src.backend.db.models import User, ScanSchedule, GitHubAccount, UserRole
 from src.backend.services.scheduler_service import SchedulerService
 from src.backend.services.scan_executor import ScanExecutor
 
@@ -44,6 +44,25 @@ async def create_schedule(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
+    if frequency not in {"daily", "weekly", "custom"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid frequency: must be 'daily', 'weekly', or 'custom'",
+        )
+
+    # Authorization: the GitHub account must belong to the requesting user.
+    account = (
+        db.query(GitHubAccount)
+        .filter(GitHubAccount.id == github_account_id)
+        .filter(GitHubAccount.user_id == current_user.id)
+        .first()
+    )
+    if not account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="GitHub account not found or access denied",
+        )
+
     service = SchedulerService(db)
 
     try:
@@ -150,6 +169,13 @@ async def execute_due_scans(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
+    # Triggers scans for ALL users' due schedules — admin-only operation.
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins may trigger scans manually",
+        )
+
     executor = ScanExecutor(db)
     results = await executor.execute_all_due_scans()
 

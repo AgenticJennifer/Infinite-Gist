@@ -20,6 +20,7 @@ from src.backend.core.security import (
 )
 from src.backend.db.session import get_db
 from src.backend.db.models import User, GitHubAccount
+from src.backend.core.rate_limit import enforce_login_rate_limit
 from src.backend.schemas.auth import Token, User as UserSchema
 from src.backend.api.deps import get_current_active_user
 
@@ -193,13 +194,20 @@ async def github_callback(
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    _: None = Depends(enforce_login_rate_limit),
+    db: Session = Depends(get_db),
 ):
     """
     OAuth2 compatible token login, get an access token for future requests.
     """
     user = db.query(User).filter(User.username == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    # Reject missing/invalid password and OAuth-only accounts (no password set).
+    if (
+        not user
+        or not user.hashed_password
+        or not verify_password(form_data.password, user.hashed_password)
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",

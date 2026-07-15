@@ -10,6 +10,7 @@ Security Notes:
 import base64
 import hashlib
 import os
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -52,23 +53,51 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 
+# In-memory store of issued OAuth state nonces (single-process MVP).
+# Maps nonce -> expiry epoch. Consumed (single-use) on successful verification
+# so a state token cannot be replayed. A multi-worker deployment would need a
+# shared store (e.g. Redis) instead.
+_oauth_state_store: dict[str, float] = {}
+
+
 def create_oauth_state_token(expires_delta: Optional[timedelta] = None) -> str:
     """Create a signed, expiring, single-use state token for OAuth CSRF protection."""
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=10))
     nonce = base64.urlsafe_b64encode(os.urandom(16)).decode()
+
+    # Prune expired entries to bound memory.
+    now_ts = time.time()
+    for expired_nonce in [n for n, e in _oauth_state_store.items() if e < now_ts]:
+        del _oauth_state_store[expired_nonce]
+
+    _oauth_state_store[nonce] = expire.timestamp()
     to_encode = {"nonce": nonce, "exp": expire, "purpose": "oauth_state"}
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def verify_oauth_state_token(state: str) -> bool:
-    """Verify a state token returned from the OAuth callback. Returns True if valid."""
+    """Verify a state token returned from the OAuth callback.
+
+    Returns True only if the token is valid, unexpired, and corresponds to a
+    state we actually issued (the nonce is consumed, so it is single-use).
+    """
     try:
         payload = jwt.decode(
             state, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
     except JWTError:
         return False
-    return payload.get("purpose") == "oauth_state"
+    if payload.get("purpose") != "oauth_state":
+        return False
+    nonce = payload.get("nonce")
+    if not isinstance(nonce, str):
+        return False
+    expiry = _oauth_state_store.pop(nonce, None)
+    if expiry is None:
+        return False
+    if expiry < time.time():
+        return False
+    return True
 
 
 def _derive_fernet_key(raw_key: str) -> bytes:
@@ -138,5 +167,5 @@ async def get_current_active_user(
     current_user: User = Depends(get_current_user),
 ):
     if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
+        raise HTTPException(status_code=403, detail="Inactive user")
     return current_user

@@ -1,7 +1,11 @@
-"""
-Security middleware for Infinite Gist.
-"""
+from src.backend.middleware.security import (
+    SecurityHeadersMiddleware,
+    RequestSizeLimitMiddleware,
+    CSRFProtectionMiddleware,
+)
 
-from src.backend.middleware.security import SecurityHeadersMiddleware
-
-__all__ = ["SecurityHeadersMiddleware"]
+__all__ = [
+    "SecurityHeadersMiddleware",
+    "RequestSizeLimitMiddleware",
+    "CSRFProtectionMiddleware",
+]

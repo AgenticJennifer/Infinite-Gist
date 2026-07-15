@@ -2,39 +2,41 @@
 Endpoints for managing GitHub gists and scanning for secrets.
 """
 
+from enum import Enum
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
-from sqlalchemy.orm import Session
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from src.backend.api.deps import get_current_active_user
-from src.backend.db.session import get_db
 from src.backend.db.models import (
-    User,
-    GitHubAccount,
+    Finding,
+    FindingStatus,
     Gist,
     GistFile,
-    Finding,
+    GitHubAccount,
     ScanResult,
     SeverityLevel,
-    FindingStatus,
+    User,
 )
+from src.backend.db.session import get_db
 from src.backend.schemas.gists import (
-    GistResponse,
-    GistFileResponse,
-    ScanResultResponse,
-    ScanResponse,
-    FindingResponse,
     CorrelationGroupResponse,
-    TemporalAnalysisResponse,
+    FindingResponse,
     FindingStatsResponse,
+    GistFileResponse,
+    GistResponse,
+    ScanResponse,
+    ScanResultResponse,
+    TemporalAnalysisResponse,
 )
-from src.backend.services.gist_scanner import scan_github_account
+from src.backend.services.evidence_masker import EvidenceMasker
 from src.backend.services.finding_correlator import FindingCorrelator
+from src.backend.services.gist_scanner import scan_github_account
+from src.backend.services.secret_scanner import SecretMatch, SecretType
 from src.backend.services.temporal_analyzer import TemporalAnalyzer
 from src.backend.services.triage_service import TriageService
-from src.backend.services.evidence_masker import EvidenceMasker
-from src.backend.services.secret_scanner import SecretMatch, SecretType
 from src.backend.services.trufflehog_scanner import TruffleHogScanner
 
 # Module-level service instances for endpoint mocking
@@ -47,6 +49,20 @@ def correlation_analyzer(db=None):
 
 
 router = APIRouter()
+
+
+def _enum_to_str(value) -> str:
+    """Convert an enum (or already-str value) to its string form for API responses."""
+    return value.value if hasattr(value, "value") else str(value)
+
+
+# Triage confidence thresholds — single source of truth for the status endpoint
+# response and the pending-by-confidence query.
+TRIAGE_THRESHOLDS = {
+    "auto_triage": 0.75,
+    "manual_review": 0.35,
+    "escalation": 0.90,
+}
 
 
 @router.post("/scan/account/{github_account_id}", response_model=ScanResponse)
@@ -222,16 +238,14 @@ async def get_temporal_analysis(
         total_events=analysis.total_events,
         re_exposure_count=analysis.re_exposure_count,
         persistence_count=analysis.persistence_count,
-        posture_trend=analysis.posture_trend.value
-        if hasattr(analysis.posture_trend, "value")
-        else str(analysis.posture_trend),
+        posture_trend=_enum_to_str(analysis.posture_trend),
         events=[
             {
                 "timestamp": e.timestamp,
                 "event_type": e.event_type,
                 "gist_id": e.gist_id,
                 "finding_id": e.finding_id,
-                "details": e.details,
+                "details": e.severity,
             }
             for e in analysis.events
         ],
@@ -422,9 +436,7 @@ def get_correlations(
         CorrelationGroupResponse(
             value_hash=g.value_hash,
             finding_count=g.finding_count,
-            severity=g.severity.value
-            if hasattr(g.severity, "value")
-            else str(g.severity),
+            severity=_enum_to_str(g.severity),
             secret_type=g.secret_type or "unknown",
             gist_ids=g.gist_ids,
             first_detected=g.first_detected,
@@ -466,9 +478,7 @@ def get_finding_correlations(
         CorrelationGroupResponse(
             value_hash=g.value_hash,
             finding_count=g.finding_count,
-            severity=g.severity.value
-            if hasattr(g.severity, "value")
-            else str(g.severity),
+            severity=_enum_to_str(g.severity),
             secret_type=g.secret_type or "unknown",
             gist_ids=g.gist_ids,
             first_detected=g.first_detected,
@@ -595,7 +605,11 @@ def get_triage_status(
     borderline_count = (
         db.query(Finding)
         .filter(Finding.gist_id.in_(user_gist_ids))
-        .filter(Finding.confidence.between(0.35, 0.75))
+        .filter(
+            Finding.confidence.between(
+                TRIAGE_THRESHOLDS["manual_review"], TRIAGE_THRESHOLDS["auto_triage"]
+            )
+        )
         .count()
     )
     high_confidence = (
@@ -621,9 +635,9 @@ def get_triage_status(
         "pending_findings": pending_findings,
         "pending_by_confidence": pending_by_confidence,
         "triage_thresholds": {
-            "auto_triage_threshold": 0.75,
-            "manual_review_threshold": 0.35,
-            "escalation_threshold": 0.90,
+            "auto_triage_threshold": TRIAGE_THRESHOLDS["auto_triage"],
+            "manual_review_threshold": TRIAGE_THRESHOLDS["manual_review"],
+            "escalation_threshold": TRIAGE_THRESHOLDS["escalation"],
         },
     }
 
