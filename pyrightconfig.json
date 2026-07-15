@@ -1,0 +1,14 @@
+{
+  "include": ["src/backend"],
+  "exclude": ["**/__pycache__", "**/*.pyc"],
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "standard",
+  "reportMissingTypeStubs": false,
+  "reportUnknownMemberType": false,
+  "reportUnknownArgumentType": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownParameterType": false,
+  "reportUnknownLambdaType": false,
+  "reportMissingModuleSource": false,
+  "reportUntypedFunctionDecorator": false
+}

@@ -2,7 +2,6 @@
 Endpoints for managing GitHub gists and scanning for secrets.
 """
 
-from enum import Enum
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
