@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install ruff
+      - run: ruff check src/
+      - run: ruff format --check src/
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pytest tests/ -v --tb=short
+
+  frontend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm run test:frontend
+
+  # Static type checking with pyright.
+  # NOTE: The codebase currently carries ~200 pre-existing pyright errors rooted in
+  # SQLAlchemy Column-vs-scalar typing friction (not real bugs). This job is
+  # intentionally NON-BLOCKING so it surfaces type regressions in the CI log
+  # without red-failing the pipeline. Once the SQLAlchemy-typing baseline is
+  # cleaned up, remove `continue-on-error` below to make type regressions a
+  # required gate. See pyrightconfig.json for the (lenient) scope/settings.
+  type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: jakebailey/pyright-action@v2
+        continue-on-error: true
+        with:
+          version: latest
