@@ -108,18 +108,32 @@ def test_active_user_passes_through():
 # Login endpoint: OAuth-only accounts (hashed_password is None) cannot log in
 # --------------------------------------------------------------------------
 def test_login_rejects_oauth_only_user(client):
+    """OAuth-only users must get 401 from /token, never 500.
+
+    FastAPI binds Depends(get_db) to the original callable object, so patching
+    ``auth.get_db`` is a no-op — the real session runs and CI (empty SQLite)
+    fails with ``no such table: users``. Override the app dependency instead.
+    """
+    from src.backend.db.session import get_db
+    from src.backend.main import app
+
     db = Mock()
     user = Mock()
     user.hashed_password = None  # OAuth-only account, no password set
     db.query.return_value.filter.return_value.first.return_value = user
 
-    with patch(
-        "src.backend.api.v1.endpoints.auth.get_db", return_value=db
-    ):
+    def _override_get_db():
+        yield db
+
+    app.dependency_overrides[get_db] = _override_get_db
+    try:
         resp = client.post(
             "/api/v1/auth/token",
             data={"username": "ghost", "password": "whatever"},
         )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
     # Must be 401 (bad creds), never a 500 from verify_password(None).
     assert resp.status_code == 401
 
