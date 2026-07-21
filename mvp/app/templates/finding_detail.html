@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block content %}
+{% if message %}<section class="alert success">{{ message }}</section>{% endif %}
+{% if error %}<section class="alert error">{{ error }}</section>{% endif %}
+
+<section class="hero compact">
+  <h1>{{ finding.finding_type }}</h1>
+  <p>{{ finding.gist.github_gist_id }} / {{ finding.file_path }}:{{ finding.line_start }}</p>
+</section>
+
+<section class="metrics">
+  <div class="metric {{ finding.severity.value }}"><strong>{{ finding.severity.value }}</strong><span>Severity</span></div>
+  <div class="metric"><strong>{{ finding.confidence }}%</strong><span>Confidence</span></div>
+  <div class="metric"><strong>{{ finding.presence.value }}</strong><span>Presence</span></div>
+  <div class="metric"><strong>{{ finding.status.value }}</strong><span>Status</span></div>
+</section>
+
+<section class="card grid-two">
+  <div>
+    <h2>Why it was flagged</h2>
+    <p><strong>Detector:</strong> {{ finding.detector_id }} {{ finding.detector_version }}</p>
+    <p><strong>Validity:</strong> {{ finding.validity_state }}</p>
+    <p><strong>Recommendation:</strong> {{ finding.remediation_recommendation }}</p>
+    <p><strong>Residual risk:</strong> {{ finding.residual_risk or 'Not assessed.' }}</p>
+  </div>
+  <div>
+    <h2>Actions</h2>
+    <form method="post" action="/findings/{{ finding.stable_id }}/verify">
+      <button type="submit">Run proof-of-fix verification</button>
+    </form>
+    <form method="post" action="/findings/{{ finding.stable_id }}/status" class="stacked-form">
+      <label>Status
+        <select name="status">
+          {% for option in statuses %}
+            <option value="{{ option }}" {% if finding.status.value == option %}selected{% endif %}>{{ option }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Reason
+        <textarea name="reason" rows="3" placeholder="Required for false positive or accepted risk dispositions."></textarea>
+      </label>
+      <button type="submit">Update status</button>
+    </form>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Masked evidence</h2>
+  <p class="muted">Raw secret values are not stored by default. This page shows masked evidence and context-safe excerpts only.</p>
+  <form method="post" action="/findings/{{ finding.stable_id }}/evidence/reveal" class="inline-form">
+    <input type="hidden" name="reason" value="Viewed masked evidence on finding detail page">
+    <button type="submit">Record masked evidence access</button>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Current?</th>
+          <th>Revision</th>
+          <th>Location</th>
+          <th>Masked value</th>
+          <th>Context</th>
+          <th>Explanation</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for evidence in finding.evidences %}
+          <tr>
+            <td>{{ 'yes' if evidence.is_current else 'no' }}</td>
+            <td><code>{{ evidence.revision_sha[:12] }}</code></td>
+            <td>{{ evidence.file_path }}:{{ evidence.line_start }}</td>
+            <td><code>{{ evidence.masked_preview }}</code></td>
+            <td><code>{{ evidence.context_excerpt }}</code></td>
+            <td>{{ evidence.explanation }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" class="empty">No evidence records found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card grid-two">
+  <div>
+    <h2>State transitions</h2>
+    <table>
+      <thead><tr><th>From</th><th>To</th><th>Actor</th><th>Reason</th><th>Time</th></tr></thead>
+      <tbody>
+        {% for transition in finding.transitions %}
+          <tr>
+            <td>{{ transition.from_status or '' }}</td>
+            <td>{{ transition.to_status }}</td>
+            <td>{{ transition.actor }}</td>
+            <td>{{ transition.reason or '' }}</td>
+            <td>{{ transition.created_at }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="empty">No transitions.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <h2>Verification attempts</h2>
+    <table>
+      <thead><tr><th>Status</th><th>Result</th><th>Details</th><th>Time</th></tr></thead>
+      <tbody>
+        {% for attempt in finding.verification_attempts %}
+          <tr>
+            <td>{{ attempt.status }}</td>
+            <td>{{ attempt.result or '' }}</td>
+            <td>{{ attempt.details or '' }}</td>
+            <td>{{ attempt.completed_at or attempt.started_at }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="empty">No verification attempts.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
