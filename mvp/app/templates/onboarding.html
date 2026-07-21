@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <h1>Evidence-safe, history-aware Gist audit</h1>
+  <p>Connect GitHub, scan accessible Gists, detect current and historical leaks, and keep raw secret values out of stored evidence by default.</p>
+</section>
+
+<section class="card grid-two">
+  <div>
+    <h2>GitHub OAuth</h2>
+    <p>Recommended for local testing when a GitHub OAuth app is configured. The MVP requests the gist scope because GitHub requires it for user-level Gist access.</p>
+    {% if settings.github_client_id %}
+      <a class="button" href="/connect/github">Connect GitHub</a>
+    {% else %}
+      <p class="muted">Set GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and GITHUB_CALLBACK_URL to enable OAuth.</p>
+    {% endif %}
+  </div>
+  <div>
+    <h2>Developer token connect</h2>
+    <p>Local-only path. Use a GitHub token with Gist access. The token is encrypted at rest. Do not use this path in production.</p>
+    {% if settings.allow_dev_pat_connect %}
+      <form method="post" action="/connect/pat">
+        <label for="token">GitHub token</label>
+        <input id="token" type="password" name="token" autocomplete="off" required>
+        <button type="submit">Connect token</button>
+      </form>
+    {% else %}
+      <p class="muted">Developer token connect is disabled.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card">
+  <h2>Security posture in this MVP</h2>
+  <p>Stored findings use masked previews and HMAC fingerprints. Raw Gist bodies and raw secret values are not persisted by default. Notifications and exports use masked evidence only.</p>
+</section>
+{% endblock %}
