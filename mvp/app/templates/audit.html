@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero compact">
+  <h1>Audit log</h1>
+  <p>Operational trail for account connection, scans, finding changes, verification, export, and evidence access.</p>
+</section>
+
+<section class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Type</th>
+        <th>Actor</th>
+        <th>Summary</th>
+        <th>Finding</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for event in events %}
+        <tr>
+          <td>{{ event.created_at }}</td>
+          <td>{{ event.event_type.value }}</td>
+          <td>{{ event.actor }}</td>
+          <td>{{ event.summary }}</td>
+          <td>{{ event.finding_id or '' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="empty">No audit events.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

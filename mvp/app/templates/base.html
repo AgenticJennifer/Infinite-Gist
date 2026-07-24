@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ settings.app_name }}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/dashboard">Infinite Gist</a>
+    <nav>
+      <a href="/dashboard">Findings</a>
+      <a href="/audit">Audit</a>
+      <a href="/export/findings.csv">Export CSV</a>
+    </nav>
+  </header>
+  <main class="container">
+    {% if request.query_params.get('error') %}
+      <section class="alert error">{{ request.query_params.get('error') }}</section>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
