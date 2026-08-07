@@ -6,6 +6,8 @@
 
 **Security monitoring and remediation platform for GitHub Gists**
 
+![Infinite Gist Logo](/home/jen/Pictures/misc/e5416146-2026-08-07.png)
+
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
