@@ -1,0 +1,19 @@
+# Ruff configuration for the `src/` tree (the `mvp/` package has its own config).
+#
+# The rule selection is pinned EXPLICITLY rather than inherited from ruff's
+# built-in defaults. Ruff 0.16 widened its default rule set (adding pyupgrade,
+# flake8-bugbear, isort, flake8-simplify, ruff-specific rules, ...), which turned
+# the previously-green `lint` job red with 419 findings on code that had not
+# changed. Since CI installs ruff unpinned, that drift can recur on any release.
+#
+# These are the rules the codebase was written against:
+#   E4  - pycodestyle: import formatting
+#   E7  - pycodestyle: statement-level errors
+#   E9  - pycodestyle: syntax/IO errors
+#   F   - pyflakes
+#
+# Adopting broader rule families (I/UP/B/SIM) is a deliberate, separate cleanup:
+# add the family here and land its fixes in its own PR, rather than absorbing a
+# few hundred incidental edits into whatever change happens to be in flight.
+[lint]
+select = ["E4", "E7", "E9", "F"]
