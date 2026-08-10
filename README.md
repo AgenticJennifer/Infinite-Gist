@@ -1,5 +1,9 @@
 # Infinite Gist
 
+<p align="center">
+  <img src="docs/logo.png" alt="Infinite Gist logo" width="220">
+</p>
+
 **Security monitoring and remediation platform for GitHub Gists**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
