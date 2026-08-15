@@ -32,6 +32,35 @@ jobs:
       - run: pip install -r requirements.txt
       - run: pytest tests/ -v --tb=short
 
+  migrations-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: infinite_gist
+          POSTGRES_PASSWORD: infinite_gist
+          POSTGRES_DB: infinite_gist
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U infinite_gist -d infinite_gist"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+psycopg://infinite_gist:infinite_gist@localhost:5432/infinite_gist
+      SECRET_KEY: ci-secret-key
+      ENCRYPTION_KEY: ci-encryption-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: alembic upgrade head
+
   frontend-test:
     runs-on: ubuntu-latest
     steps:
