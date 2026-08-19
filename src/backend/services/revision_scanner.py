@@ -7,7 +7,7 @@ committed and then removed in later revisions.
 """
 
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -16,10 +16,7 @@ from src.backend.services.secret_scanner import SecretScanner, SecretMatch
 from src.backend.services.trufflehog_scanner import TruffleHogScanner
 from src.backend.services.severity_scorer import SeverityScorer
 from src.backend.services.evidence_masker import EvidenceMasker
-from src.backend.db.models import (
-    GistRevision,
-    Finding,
-)
+from src.backend.db.models import Finding, FindingStatus, GistRevision
 
 logger = logging.getLogger(__name__)
 
@@ -46,13 +43,13 @@ class RevisionScanner:
         gist_id: str,
         db_gist_id: int,
         db: Session,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[Finding]:
         """
         Scan all revisions of a gist for secrets.
 
         Returns a list of finding dicts with revision metadata.
         """
-        all_findings: List[Dict[str, Any]] = []
+        all_findings: List[Finding] = []
 
         # Get commit history from GitHub
         try:
@@ -67,9 +64,7 @@ class RevisionScanner:
         # Process each commit/revision
         for commit in commits:
             commit_sha = commit.get("version", commit.get("sha", ""))
-            committed_at_str = commit.get(
-                "committed_at", commit.get("committed_at", "")
-            )
+            committed_at_str = commit.get("committed_at", "")
 
             # Parse timestamp
             committed_at = None
@@ -84,10 +79,9 @@ class RevisionScanner:
 
             # Get gist content at this revision
             try:
-                gist_at_revision = await self.github_service.get_gist(gist_id)
-                # Note: GitHub API returns the latest version; for specific revisions,
-                # we'd need the raw URL or use git clone. For now, scan what we have.
-                # A full implementation would use git clone + checkout of each SHA.
+                gist_at_revision = await self.github_service.get_gist_revision(
+                    gist_id, commit_sha
+                )
             except Exception as e:
                 logger.debug(
                     "Could not fetch gist %s at revision %s: %s", gist_id, commit_sha, e
@@ -115,7 +109,9 @@ class RevisionScanner:
                 db.refresh(db_revision)
 
             # Scan each file in this revision
-            files_data = gist_at_revision.get("files", {})
+            files_data = await self.github_service.get_complete_files(
+                gist_at_revision, revision=commit_sha
+            )
             for filename, file_data in files_data.items():
                 content = file_data.get("content", "")
                 if not content:
@@ -135,13 +131,20 @@ class RevisionScanner:
                 combined = self._merge_matches(regex_matches, trufflehog_matches)
 
                 for match in combined:
-                    severity, confidence_level = self.scorer.score(match)
+                    severity, _ = self.scorer.score(match)
                     value_hash = self.scorer.compute_value_hash(match.matched_text)
 
-                    # Check for existing finding with same hash
+                    # Preserve the same fingerprint across Gists/revisions while
+                    # deduplicating repeated scans of the same location.
                     existing = (
                         db.query(Finding)
-                        .filter(Finding.value_hash == value_hash)
+                        .filter(
+                            Finding.value_hash == value_hash,
+                            Finding.gist_id == db_gist_id,
+                            Finding.gist_revision_id == db_revision.id,
+                            Finding.file_path == match.file_path,
+                            Finding.line_start == match.line_number,
+                        )
                         .first()
                     )
 
@@ -153,28 +156,26 @@ class RevisionScanner:
                         match.context, match.matched_text
                     )
 
-                    finding_dict = {
-                        "gist_id": db_gist_id,
-                        "gist_revision_id": db_revision.id,
-                        "file_path": match.file_path,
-                        "line_start": match.line_number,
-                        "line_end": match.line_number,
-                        "content_snippet": masked_context[:500],
-                        "finding_type": match.type.value,
-                        "secret_type": match.type.value,
-                        "severity": severity,
-                        "confidence": int(match.confidence * 100),
-                        "confidence_level": confidence_level.value,
-                        "masked_value": masked_value,
-                        "value_hash": value_hash,
-                        "detected_at": datetime.now(timezone.utc),
-                        "revision_sha": commit_sha,
-                        "committed_at": committed_at,
-                        "scanner": "trufflehog"
-                        if match in trufflehog_matches
-                        else "regex",
-                    }
-                    all_findings.append(finding_dict)
+                    finding = Finding(
+                        gist_id=db_gist_id,
+                        gist_revision_id=db_revision.id,
+                        file_path=match.file_path,
+                        line_start=match.line_number,
+                        line_end=match.line_number,
+                        content_snippet=masked_context[:500],
+                        finding_type=match.type.value,
+                        secret_type=match.type.value,
+                        severity=severity,
+                        confidence=int(match.confidence * 100),
+                        masked_value=masked_value,
+                        value_hash=value_hash,
+                        detected_at=datetime.now(timezone.utc),
+                        status=FindingStatus.NEW,
+                    )
+                    db.add(finding)
+                    db.commit()
+                    db.refresh(finding)
+                    all_findings.append(finding)
 
         return all_findings
 

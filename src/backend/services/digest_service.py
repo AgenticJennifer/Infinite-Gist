@@ -8,9 +8,10 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from src.backend.db.models import (
+    AccountPolicy,
+    DigestReport,
     Finding,
     Gist,
-    DigestReport,
     RemediationAction,
     ScanRun,
 )
@@ -190,12 +191,13 @@ class DigestService:
         subject = f"Infinite Gist: {report.report_type.capitalize()} Security Digest"
         body = f"Security digest for period {report.period_start} to {report.period_end}.\n\n{report.summary}"
 
-        await self.notification_service.send_email(user_email, subject, body)
-
-        report.sent_at = datetime.now(timezone.utc)
-        self.db.commit()
-
-        return True
+        delivered = await self.notification_service.send_email(
+            user_email, subject, body
+        )
+        if delivered:
+            report.sent_at = datetime.now(timezone.utc)
+            self.db.commit()
+        return delivered
 
     async def get_user_digests(
         self, user_id: int, limit: int = 30
@@ -217,3 +219,45 @@ class DigestService:
             .limit(limit)
             .all()
         )
+
+    async def send_due_digests(self) -> list[DigestReport]:
+        """Generate and attempt delivery for due daily or weekly policies."""
+        now = datetime.now(timezone.utc)
+        delivered: list[DigestReport] = []
+        policies = (
+            self.db.query(AccountPolicy)
+            .filter(AccountPolicy.digest_frequency.in_(["daily", "weekly"]))
+            .all()
+        )
+
+        for policy in policies:
+            try:
+                frequency = policy.digest_frequency
+                interval = timedelta(days=1 if frequency == "daily" else 7)
+                latest = (
+                    self.db.query(DigestReport)
+                    .filter(
+                        DigestReport.user_id == policy.user_id,
+                        DigestReport.report_type == frequency,
+                    )
+                    .order_by(DigestReport.created_at.desc())
+                    .first()
+                )
+                if latest and latest.created_at:
+                    created_at = latest.created_at
+                    if created_at.tzinfo is None:
+                        created_at = created_at.replace(tzinfo=timezone.utc)
+                    if created_at >= now - interval:
+                        continue
+
+                report = (
+                    await self.generate_daily_digest(policy.user_id)
+                    if frequency == "daily"
+                    else await self.generate_weekly_digest(policy.user_id)
+                )
+                if await self.send_digest(report, policy.user.email):
+                    delivered.append(report)
+            except Exception:
+                logger.exception("Scheduled digest failed for user %s", policy.user_id)
+
+        return delivered

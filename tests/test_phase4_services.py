@@ -64,6 +64,7 @@ def mock_policy():
 def mock_finding():
     finding = Mock(spec=Finding)
     finding.id = 1
+    finding.gist_id = 10
     finding.finding_type = "aws_key"
     finding.secret_type = "aws_access_key"
     return finding
@@ -87,19 +88,20 @@ def mock_trend():
 
 
 class TestSchedulerService:
-
     def test_create_schedule(self, mock_db, mock_schedule):
         mock_db.add = Mock()
         mock_db.commit = Mock()
-        mock_db.refresh = Mock(side_effect=lambda x: setattr(x, 'id', 1))
+        mock_db.refresh = Mock(side_effect=lambda x: setattr(x, "id", 1))
 
-        with patch.object(AuditService, 'log_event', new_callable=AsyncMock):
+        with patch.object(AuditService, "log_event", new_callable=AsyncMock):
             service = SchedulerService(mock_db)
-            asyncio.run(service.create_schedule(
-                user_id=1,
-                github_account_id=1,
-                frequency="daily",
-            ))
+            asyncio.run(
+                service.create_schedule(
+                    user_id=1,
+                    github_account_id=1,
+                    frequency="daily",
+                )
+            )
 
             mock_db.add.assert_called_once()
             mock_db.commit.assert_called_once()
@@ -109,13 +111,15 @@ class TestSchedulerService:
         mock_db.commit = Mock()
         mock_db.refresh = Mock()
 
-        with patch.object(AuditService, 'log_event', new_callable=AsyncMock):
+        with patch.object(AuditService, "log_event", new_callable=AsyncMock):
             service = SchedulerService(mock_db)
-            schedule = asyncio.run(service.create_schedule(
-                user_id=1,
-                github_account_id=1,
-                frequency="daily",
-            ))
+            schedule = asyncio.run(
+                service.create_schedule(
+                    user_id=1,
+                    github_account_id=1,
+                    frequency="daily",
+                )
+            )
 
             # next_run_at should be approximately 1 day from now
             assert schedule.next_run_at is not None
@@ -125,20 +129,24 @@ class TestSchedulerService:
         mock_db.commit = Mock()
         mock_db.refresh = Mock()
 
-        with patch.object(AuditService, 'log_event', new_callable=AsyncMock):
+        with patch.object(AuditService, "log_event", new_callable=AsyncMock):
             service = SchedulerService(mock_db)
-            schedule = asyncio.run(service.create_schedule(
-                user_id=1,
-                github_account_id=1,
-                frequency="weekly",
-            ))
+            schedule = asyncio.run(
+                service.create_schedule(
+                    user_id=1,
+                    github_account_id=1,
+                    frequency="weekly",
+                )
+            )
 
             assert schedule.frequency == "weekly"
             assert schedule.next_run_at is not None
 
     def test_get_due_schedules(self, mock_db, mock_schedule):
         mock_schedule.next_run_at = datetime.utcnow() - timedelta(hours=1)
-        mock_db.query.return_value.filter.return_value.all.return_value = [mock_schedule]
+        mock_db.query.return_value.filter.return_value.all.return_value = [
+            mock_schedule
+        ]
 
         service = SchedulerService(mock_db)
         result = asyncio.run(service.get_due_schedules())
@@ -155,7 +163,9 @@ class TestSchedulerService:
         assert result == []
 
     def test_mark_schedule_run(self, mock_db, mock_schedule):
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_schedule
+        mock_db.query.return_value.filter.return_value.first.return_value = (
+            mock_schedule
+        )
         mock_db.commit = Mock()
         mock_db.refresh = Mock()
 
@@ -194,11 +204,13 @@ class TestSchedulerService:
         assert claimed is False
 
     def test_update_schedule(self, mock_db, mock_schedule):
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_schedule
+        mock_db.query.return_value.filter.return_value.first.return_value = (
+            mock_schedule
+        )
         mock_db.commit = Mock()
         mock_db.refresh = Mock()
 
-        with patch.object(AuditService, 'log_event', new_callable=AsyncMock):
+        with patch.object(AuditService, "log_event", new_callable=AsyncMock):
             service = SchedulerService(mock_db)
             asyncio.run(service.update_schedule(1, user_id=1, enabled=False))
 
@@ -214,11 +226,13 @@ class TestSchedulerService:
             asyncio.run(service.update_schedule(999, user_id=1, frequency="weekly"))
 
     def test_update_schedule_recalculates_next_run(self, mock_db, mock_schedule):
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_schedule
+        mock_db.query.return_value.filter.return_value.first.return_value = (
+            mock_schedule
+        )
         mock_db.commit = Mock()
         mock_db.refresh = Mock()
 
-        with patch.object(AuditService, 'log_event', new_callable=AsyncMock):
+        with patch.object(AuditService, "log_event", new_callable=AsyncMock):
             service = SchedulerService(mock_db)
             asyncio.run(service.update_schedule(1, user_id=1, frequency="weekly"))
 
@@ -227,7 +241,9 @@ class TestSchedulerService:
             assert mock_schedule.next_run_at is not None
 
     def test_delete_schedule(self, mock_db, mock_schedule):
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_schedule
+        mock_db.query.return_value.filter.return_value.first.return_value = (
+            mock_schedule
+        )
         mock_db.delete = Mock()
         mock_db.commit = Mock()
 
@@ -246,7 +262,9 @@ class TestSchedulerService:
         assert result is False
 
     def test_get_user_schedules(self, mock_db, mock_schedule):
-        mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_schedule]
+        mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [
+            mock_schedule
+        ]
 
         service = SchedulerService(mock_db)
         result = asyncio.run(service.get_user_schedules(1))
@@ -266,19 +284,25 @@ class TestSchedulerService:
 
     def test_calculate_next_run_custom(self, mock_db):
         service = SchedulerService(mock_db)
-        next_run = service._calculate_next_run("custom")
+        next_run = service._calculate_next_run("custom", "0 3 * * *")
         assert next_run is not None
 
 
 class TestScanExecutor:
-
     def test_execute_scheduled_scan(self, mock_db, mock_schedule):
         mock_db.add = Mock()
         mock_db.commit = Mock()
         mock_db.refresh = Mock()
 
-        with patch.object(SchedulerService, 'mark_schedule_run', new_callable=AsyncMock):
-            with patch.object(GistScannerService, 'scan_github_account', new_callable=AsyncMock, return_value=[]):
+        with patch.object(
+            SchedulerService, "mark_schedule_run", new_callable=AsyncMock
+        ):
+            with patch.object(
+                GistScannerService,
+                "scan_github_account",
+                new_callable=AsyncMock,
+                return_value=[],
+            ):
                 service = ScanExecutor(mock_db)
                 result = asyncio.run(service.execute_scheduled_scan(mock_schedule))
 
@@ -287,9 +311,21 @@ class TestScanExecutor:
                 assert result.status == "completed"
 
     def test_execute_all_due_scans(self, mock_db, mock_schedule):
-        with patch.object(SchedulerService, 'get_due_schedules', new_callable=AsyncMock, return_value=[mock_schedule]):
-            with patch.object(SchedulerService, 'claim_schedule', new_callable=AsyncMock, return_value=True):
-                with patch.object(ScanExecutor, 'execute_scheduled_scan', new_callable=AsyncMock) as mock_exec:
+        with patch.object(
+            SchedulerService,
+            "get_due_schedules",
+            new_callable=AsyncMock,
+            return_value=[mock_schedule],
+        ):
+            with patch.object(
+                SchedulerService,
+                "claim_schedule",
+                new_callable=AsyncMock,
+                return_value=True,
+            ):
+                with patch.object(
+                    ScanExecutor, "execute_scheduled_scan", new_callable=AsyncMock
+                ) as mock_exec:
                     mock_scan_run = Mock()
                     mock_scan_run.id = 1
                     mock_scan_run.status = "completed"
@@ -301,9 +337,21 @@ class TestScanExecutor:
                     assert len(results) == 1
 
     def test_execute_all_due_scans_skips_already_claimed(self, mock_db, mock_schedule):
-        with patch.object(SchedulerService, 'get_due_schedules', new_callable=AsyncMock, return_value=[mock_schedule]):
-            with patch.object(SchedulerService, 'claim_schedule', new_callable=AsyncMock, return_value=False):
-                with patch.object(ScanExecutor, 'execute_scheduled_scan', new_callable=AsyncMock) as mock_exec:
+        with patch.object(
+            SchedulerService,
+            "get_due_schedules",
+            new_callable=AsyncMock,
+            return_value=[mock_schedule],
+        ):
+            with patch.object(
+                SchedulerService,
+                "claim_schedule",
+                new_callable=AsyncMock,
+                return_value=False,
+            ):
+                with patch.object(
+                    ScanExecutor, "execute_scheduled_scan", new_callable=AsyncMock
+                ) as mock_exec:
                     service = ScanExecutor(mock_db)
                     results = asyncio.run(service.execute_all_due_scans())
 
@@ -316,8 +364,18 @@ class TestScanExecutor:
         schedule2.user_id = 1
         schedule2.frequency = "daily"
 
-        with patch.object(SchedulerService, 'get_due_schedules', new_callable=AsyncMock, return_value=[mock_schedule, schedule2]):
-            with patch.object(SchedulerService, 'claim_schedule', new_callable=AsyncMock, return_value=True):
+        with patch.object(
+            SchedulerService,
+            "get_due_schedules",
+            new_callable=AsyncMock,
+            return_value=[mock_schedule, schedule2],
+        ):
+            with patch.object(
+                SchedulerService,
+                "claim_schedule",
+                new_callable=AsyncMock,
+                return_value=True,
+            ):
                 call_count = 0
 
                 async def mock_execute(schedule):
@@ -328,7 +386,9 @@ class TestScanExecutor:
                     else:
                         raise Exception("Scan failed")
 
-                with patch.object(ScanExecutor, 'execute_scheduled_scan', side_effect=mock_execute):
+                with patch.object(
+                    ScanExecutor, "execute_scheduled_scan", side_effect=mock_execute
+                ):
                     mock_db.add = Mock()
                     mock_db.commit = Mock()
                     mock_db.refresh = Mock()
@@ -339,7 +399,12 @@ class TestScanExecutor:
                     assert len(results) == 1
 
     def test_execute_all_due_scans_empty(self, mock_db):
-        with patch.object(SchedulerService, 'get_due_schedules', new_callable=AsyncMock, return_value=[]):
+        with patch.object(
+            SchedulerService,
+            "get_due_schedules",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
             service = ScanExecutor(mock_db)
             results = asyncio.run(service.execute_all_due_scans())
 
@@ -350,7 +415,12 @@ class TestScanExecutor:
         mock_db.commit = Mock()
         mock_db.refresh = Mock()
 
-        with patch.object(GistScannerService, 'scan_github_account', new_callable=AsyncMock, return_value=[]):
+        with patch.object(
+            GistScannerService,
+            "scan_github_account",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
             service = ScanExecutor(mock_db)
             result = asyncio.run(service.run_scan_for_account(1, user_id=1))
 
@@ -360,7 +430,6 @@ class TestScanExecutor:
 
 
 class TestDigestService:
-
     def test_generate_daily_digest(self, mock_db):
         # Mock query chains for counts
         mock_db.query.return_value.filter.return_value.count.return_value = 3
@@ -396,7 +465,7 @@ class TestDigestService:
         report.period_end = datetime.utcnow()
         report.summary = '{"new_findings": 3}'
 
-        with patch.object(DigestService, '__init__', lambda self, db: None):
+        with patch.object(DigestService, "__init__", lambda self, db: None):
             service = DigestService.__new__(DigestService)
             service.db = mock_db
             service.notification_service = Mock()
@@ -409,7 +478,9 @@ class TestDigestService:
 
     def test_get_user_digests(self, mock_db):
         mock_report = Mock(spec=DigestReport)
-        mock_db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = [mock_report]
+        mock_db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = [
+            mock_report
+        ]
 
         service = DigestService(mock_db)
         result = asyncio.run(service.get_user_digests(user_id=1))
@@ -418,7 +489,6 @@ class TestDigestService:
 
 
 class TestPolicyService:
-
     def test_get_user_policy_existing(self, mock_db, mock_policy):
         mock_db.query.return_value.filter.return_value.first.return_value = mock_policy
 
@@ -482,7 +552,9 @@ class TestPolicyService:
 
         assert result is True
 
-    def test_should_auto_remediate_enabled_non_matching_type(self, mock_db, mock_policy):
+    def test_should_auto_remediate_enabled_non_matching_type(
+        self, mock_db, mock_policy
+    ):
         mock_policy.auto_remediate = True
         mock_policy.auto_remediate_types = '["aws_key"]'
         mock_db.query.return_value.filter.return_value.first.return_value = mock_policy
@@ -512,10 +584,10 @@ class TestPolicyService:
 
 
 class TestTrendService:
-
     def test_record_daily_snapshot(self, mock_db):
         # Mock the count queries
         mock_db.query.return_value.filter.return_value.count.return_value = 5
+        mock_db.query.return_value.filter.return_value.first.return_value = None
         mock_db.add = Mock()
         mock_db.commit = Mock()
         mock_db.refresh = Mock()
@@ -527,7 +599,9 @@ class TestTrendService:
         mock_db.commit.assert_called_once()
 
     def test_get_trends(self, mock_db, mock_trend):
-        mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_trend]
+        mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [
+            mock_trend
+        ]
 
         service = TrendService(mock_db)
         result = asyncio.run(service.get_trends(user_id=1, days=30))
@@ -535,10 +609,17 @@ class TestTrendService:
         assert len(result) == 1
 
     def test_get_posture_summary_with_data(self, mock_db, mock_trend):
-        mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_trend]
+        mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [
+            mock_trend
+        ]
 
         service = TrendService(mock_db)
-        with patch.object(TrendService, 'calculate_trend_direction', new_callable=AsyncMock, return_value="improving"):
+        with patch.object(
+            TrendService,
+            "calculate_trend_direction",
+            new_callable=AsyncMock,
+            return_value="improving",
+        ):
             result = asyncio.run(service.get_posture_summary(user_id=1))
 
             assert result["current_total"] == 5
@@ -548,7 +629,12 @@ class TestTrendService:
         mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = []
 
         service = TrendService(mock_db)
-        with patch.object(TrendService, 'calculate_trend_direction', new_callable=AsyncMock, return_value="stable"):
+        with patch.object(
+            TrendService,
+            "calculate_trend_direction",
+            new_callable=AsyncMock,
+            return_value="stable",
+        ):
             result = asyncio.run(service.get_posture_summary(user_id=1))
 
             assert result["current_total"] == 0
@@ -560,7 +646,8 @@ class TestTrendService:
         older_trends = [Mock(total_findings=8), Mock(total_findings=10)]
 
         mock_db.query.return_value.filter.return_value.all.side_effect = [
-            recent_trends, older_trends
+            recent_trends,
+            older_trends,
         ]
 
         service = TrendService(mock_db)
@@ -574,7 +661,8 @@ class TestTrendService:
         older_trends = [Mock(total_findings=2), Mock(total_findings=3)]
 
         mock_db.query.return_value.filter.return_value.all.side_effect = [
-            recent_trends, older_trends
+            recent_trends,
+            older_trends,
         ]
 
         service = TrendService(mock_db)
@@ -588,7 +676,8 @@ class TestTrendService:
         older_trends = [Mock(total_findings=5), Mock(total_findings=5)]
 
         mock_db.query.return_value.filter.return_value.all.side_effect = [
-            recent_trends, older_trends
+            recent_trends,
+            older_trends,
         ]
 
         service = TrendService(mock_db)
@@ -606,39 +695,72 @@ class TestTrendService:
 
 
 class TestAutoRemediationService:
-
     def test_check_and_remediate_allowed(self, mock_db, mock_finding):
         mock_action = Mock()
         mock_action.id = 1
         mock_action.status = "completed"
 
-        with patch.object(PolicyService, 'should_auto_remediate', new_callable=AsyncMock, return_value=True):
-            with patch.object(RemediationService, 'make_private', new_callable=AsyncMock, return_value=mock_action):
-                with patch.object(AuditService, 'log_event', new_callable=AsyncMock):
-                    service = AutoRemediationService(mock_db)
-                    result = asyncio.run(service.check_and_remediate(mock_finding, user_id=1))
+        with patch.object(
+            PolicyService,
+            "should_auto_remediate",
+            new_callable=AsyncMock,
+            return_value=True,
+        ):
+            with patch.object(
+                RemediationService,
+                "replace_with_secret",
+                new_callable=AsyncMock,
+                return_value=mock_action,
+            ):
+                with patch.object(AuditService, "log_event", new_callable=AsyncMock):
+                    with patch(
+                        "src.backend.services.auto_remediation_service.NotificationService.notify_remediation_complete",
+                        new_callable=AsyncMock,
+                    ):
+                        service = AutoRemediationService(mock_db)
+                        result = asyncio.run(
+                            service.check_and_remediate(mock_finding, user_id=1)
+                        )
 
                     assert result == mock_action
 
     def test_check_and_remediate_denied(self, mock_db, mock_finding):
-        with patch.object(PolicyService, 'should_auto_remediate', new_callable=AsyncMock, return_value=False):
+        with patch.object(
+            PolicyService,
+            "should_auto_remediate",
+            new_callable=AsyncMock,
+            return_value=False,
+        ):
             service = AutoRemediationService(mock_db)
             result = asyncio.run(service.check_and_remediate(mock_finding, user_id=1))
 
             assert result is None
 
     def test_check_and_remediate_exception(self, mock_db, mock_finding):
-        with patch.object(PolicyService, 'should_auto_remediate', new_callable=AsyncMock, return_value=True):
-            with patch.object(RemediationService, 'make_private', new_callable=AsyncMock, side_effect=Exception("API error")):
-                with patch.object(AuditService, 'log_event', new_callable=AsyncMock):
+        with patch.object(
+            PolicyService,
+            "should_auto_remediate",
+            new_callable=AsyncMock,
+            return_value=True,
+        ):
+            with patch.object(
+                RemediationService,
+                "replace_with_secret",
+                new_callable=AsyncMock,
+                side_effect=Exception("API error"),
+            ):
+                with patch.object(AuditService, "log_event", new_callable=AsyncMock):
                     service = AutoRemediationService(mock_db)
-                    result = asyncio.run(service.check_and_remediate(mock_finding, user_id=1))
+                    result = asyncio.run(
+                        service.check_and_remediate(mock_finding, user_id=1)
+                    )
 
                     assert result is None
 
     def test_batch_check_and_remediate(self, mock_db, mock_finding):
         finding2 = Mock(spec=Finding)
         finding2.id = 2
+        finding2.gist_id = 10
         finding2.finding_type = "password"
         finding2.secret_type = "hardcoded_password"
 
@@ -646,7 +768,10 @@ class TestAutoRemediationService:
         mock_action.id = 1
         mock_action.status = "completed"
 
-        with patch.object(AutoRemediationService, 'check_and_remediate', new_callable=AsyncMock) as mock_check:
+        with patch.object(
+            AutoRemediationService, "check_and_remediate", new_callable=AsyncMock
+        ) as mock_check:
+
             async def side_effect(finding, user_id):
                 if finding.id == 1:
                     return mock_action
@@ -655,9 +780,12 @@ class TestAutoRemediationService:
             mock_check.side_effect = side_effect
 
             service = AutoRemediationService(mock_db)
-            result = asyncio.run(service.batch_check_and_remediate([mock_finding, finding2], user_id=1))
+            result = asyncio.run(
+                service.batch_check_and_remediate([mock_finding, finding2], user_id=1)
+            )
 
             # Only first finding was auto-remediated
             assert len(result) == 1
             assert result[0][0] == mock_finding
             assert result[0][1] == mock_action
+            mock_check.assert_awaited_once()

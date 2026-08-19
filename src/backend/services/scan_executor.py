@@ -10,9 +10,13 @@ import logging
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
-from src.backend.db.models import ScanRun, Gist
+from src.backend.db.models import Gist, ScanRun, User
+from src.backend.services.auto_remediation_service import AutoRemediationService
+from src.backend.services.notification_service import NotificationService
+from src.backend.services.policy_service import PolicyService
 from src.backend.services.scheduler_service import SchedulerService
 from src.backend.services.gist_scanner import GistScannerService
+from src.backend.services.trend_service import TrendService
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +59,8 @@ class ScanExecutor:
             scan_run.status = "completed"
             scan_run.ended_at = datetime.now(timezone.utc)
             self.db.commit()
+            await self._apply_post_scan_policies(schedule.user_id, findings, scan_run)
+            await TrendService(self.db).record_daily_snapshot(schedule.user_id)
         except Exception as e:
             logger.error("Scheduled scan failed for schedule %s: %s", schedule.id, e)
             scan_run.status = "failed"
@@ -78,7 +84,7 @@ class ScanExecutor:
 
         for schedule in due_schedules:
             claimed = await self.scheduler_service.claim_schedule(
-                schedule.id, schedule.frequency
+                schedule.id, schedule.frequency, schedule.cron_expression
             )
             if not claimed:
                 logger.info(
@@ -129,6 +135,8 @@ class ScanExecutor:
             )
             scan_run.findings_count = len(findings)
             scan_run.status = "completed"
+            await self._apply_post_scan_policies(user_id, findings, scan_run)
+            await TrendService(self.db).record_daily_snapshot(user_id)
         except Exception as e:
             logger.error("Manual scan failed for account %s: %s", github_account_id, e)
             scan_run.status = "failed"
@@ -139,3 +147,27 @@ class ScanExecutor:
             self.db.refresh(scan_run)
 
         return scan_run
+
+    async def _apply_post_scan_policies(
+        self, user_id: int, findings: list, scan_run: ScanRun
+    ) -> None:
+        """Apply opt-in actions and notifications without failing a valid scan."""
+        try:
+            user = self.db.query(User).filter(User.id == user_id).first()
+            if not user:
+                logger.error("Cannot apply scan policies: user %s not found", user_id)
+                return
+
+            policy = await PolicyService(self.db).get_user_policy(user_id)
+            notifier = NotificationService(self.db)
+
+            if policy.auto_remediate and findings:
+                await AutoRemediationService(self.db).batch_check_and_remediate(
+                    findings, user_id
+                )
+            if policy.notify_on_finding and findings:
+                await notifier.notify_new_findings(user, findings)
+            if policy.notify_on_scan:
+                await notifier.notify_scan_complete(user, scan_run)
+        except Exception:
+            logger.exception("Post-scan policy processing failed for user %s", user_id)

@@ -1,18 +1,14 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: infinite_gist
-      POSTGRES_PASSWORD: infinite_gist
-      POSTGRES_DB: infinite_gist
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-infinite_gist}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-infinite_gist_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-infinite_gist}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U infinite_gist -d infinite_gist"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-infinite_gist} -d ${POSTGRES_DB:-infinite_gist}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -24,7 +20,9 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+psycopg://infinite_gist:infinite_gist@db:5432/infinite_gist
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-infinite_gist}:${POSTGRES_PASSWORD:-infinite_gist_dev}@db:5432/${POSTGRES_DB:-infinite_gist}
+      SCHEDULER_ENABLED: "true"
+      ENABLE_TRUFFLEHOG: "true"
     depends_on:
       db:
         condition: service_healthy

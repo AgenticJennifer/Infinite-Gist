@@ -17,6 +17,7 @@ These lock in the behavior changes so they cannot silently regress:
 """
 
 import asyncio
+from datetime import datetime
 from enum import Enum
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -27,7 +28,9 @@ from src.backend.core import rate_limit as rl_module
 from src.backend.core.rate_limit import RateLimiter
 from src.backend.core.security import (
     create_oauth_state_token,
+    get_password_hash,
     get_current_active_user,
+    verify_password,
     verify_oauth_state_token,
 )
 from src.backend.db.models import UserRole
@@ -104,6 +107,14 @@ def test_active_user_passes_through():
     assert asyncio.run(get_current_active_user(current_user=user)) is user
 
 
+def test_password_hash_round_trip_and_invalid_hash():
+    hashed = get_password_hash("correct horse battery staple")
+
+    assert verify_password("correct horse battery staple", hashed) is True
+    assert verify_password("wrong password", hashed) is False
+    assert verify_password("anything", "not-a-bcrypt-hash") is False
+
+
 # --------------------------------------------------------------------------
 # Login endpoint: OAuth-only accounts (hashed_password is None) cannot log in
 # --------------------------------------------------------------------------
@@ -175,8 +186,9 @@ def test_create_schedule_rejects_other_users_account():
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
             schedules_module.create_schedule(
-                github_account_id=999,
-                frequency="daily",
+                request=schedules_module.ScheduleCreateRequest(
+                    github_account_id=999, frequency="daily"
+                ),
                 current_user=_user_with_role(UserRole.USER),
                 db=db,
             )
@@ -192,16 +204,11 @@ def test_create_schedule_invalid_frequency():
         Mock()
     )
 
-    with pytest.raises(HTTPException) as exc:
-        asyncio.run(
-            schedules_module.create_schedule(
-                github_account_id=5,
-                frequency="hourly",  # not allowed
-                current_user=_user_with_role(UserRole.USER),
-                db=db,
-            )
+    with pytest.raises(ValueError):
+        schedules_module.ScheduleCreateRequest(
+            github_account_id=5,
+            frequency="hourly",
         )
-    assert exc.value.status_code == 400
 
 
 def test_create_schedule_owner_succeeds():
@@ -217,8 +224,9 @@ def test_create_schedule_owner_succeeds():
         svc.create_schedule = AsyncMock(return_value=_fake_schedule())
         resp = asyncio.run(
             schedules_module.create_schedule(
-                github_account_id=5,
-                frequency="daily",
+                request=schedules_module.ScheduleCreateRequest(
+                    github_account_id=5, frequency="daily"
+                ),
                 current_user=_user_with_role(UserRole.USER),
                 db=db,
             )
@@ -261,15 +269,13 @@ def test_temporal_endpoint_uses_severity_not_details():
     from src.backend.api.v1.endpoints import gists as gists_module
 
     analysis = Mock()
-    analysis.total_events = 10
-    analysis.re_exposure_count = 2
-    analysis.persistence_count = 3
-    analysis.posture_trend = "stable"
-    analysis.first_detected = "2024-01-01"
-    analysis.last_detected = "2024-01-02"
+    analysis.re_exposures = [{"id": 1}, {"id": 2}]
+    analysis.persistence_counts = {"hash": 3}
+    analysis.first_seen = {"hash": datetime(2024, 1, 1)}
+    analysis.last_seen = {"hash": datetime(2024, 1, 2)}
 
     event = Mock()
-    event.timestamp = "2024-01-01T00:00:00"
+    event.timestamp = datetime(2024, 1, 1)
     event.event_type = "scan"
     event.gist_id = 1
     event.finding_id = 1
@@ -281,15 +287,23 @@ def test_temporal_endpoint_uses_severity_not_details():
     user.id = 1
 
     with patch.object(gists_module, "TemporalAnalyzer") as MockTA:
-        MockTA.return_value.analyze.return_value = analysis
+        MockTA.return_value.analyze_gist_history.return_value = analysis
+        MockTA.return_value.analyze_user_posture.return_value = {
+            "findings_trend": "improving"
+        }
         resp = asyncio.run(
             gists_module.get_temporal_analysis(gist_id=1, current_user=user, db=db)
         )
 
-    evt = resp.events[0]
-    value = evt.details if hasattr(evt, "details") else evt["details"]
-    assert value == "high"
-    assert "Scan event" not in str(value)  # proves old .details path is gone
+    MockTA.return_value.analyze_gist_history.assert_called_once_with(1, db)
+    MockTA.return_value.analyze_user_posture.assert_called_once_with(1, db)
+    assert resp.total_events == 1
+    assert resp.re_exposure_count == 2
+    assert resp.persistence_count == 3
+    assert resp.posture_trend == "improving"
+    assert resp.first_detected == datetime(2024, 1, 1)
+    assert resp.last_detected == datetime(2024, 1, 2)
+    assert resp.events[0].details == "high"
 
 
 # --------------------------------------------------------------------------

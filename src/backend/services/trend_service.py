@@ -3,10 +3,10 @@ Trend service for tracking security posture over time.
 """
 
 import logging
-from datetime import datetime, date, timedelta, timezone
+from datetime import date, timedelta
 from sqlalchemy.orm import Session
 
-from src.backend.db.models import Finding, SecurityTrend, RemediationAction
+from src.backend.db.models import Finding, Gist, RemediationAction, SecurityTrend
 
 logger = logging.getLogger(__name__)
 
@@ -78,18 +78,26 @@ class TrendService:
             .count()
         )
 
-        trend = SecurityTrend(
-            user_id=user_id,
-            date=today,
-            total_findings=total_findings,
-            critical_findings=critical_findings,
-            high_findings=high_findings,
-            medium_findings=medium_findings,
-            low_findings=low_findings,
-            remediated_count=remediated,
-            created_at=datetime.now(timezone.utc),
+        gists_scanned = self.db.query(Gist).filter(Gist.user_id == user_id).count()
+
+        trend = (
+            self.db.query(SecurityTrend)
+            .filter(
+                SecurityTrend.user_id == user_id,
+                SecurityTrend.date == today,
+            )
+            .first()
         )
-        self.db.add(trend)
+        if trend is None:
+            trend = SecurityTrend(user_id=user_id, date=today)
+            self.db.add(trend)
+        trend.total_findings = total_findings
+        trend.critical_findings = critical_findings
+        trend.high_findings = high_findings
+        trend.medium_findings = medium_findings
+        trend.low_findings = low_findings
+        trend.gists_scanned = gists_scanned
+        trend.remediated_count = remediated
         self.db.commit()
         self.db.refresh(trend)
 

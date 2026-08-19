@@ -1,11 +1,11 @@
-# HANDOFF — Infinite Gist
+# HANDOFF - Infinite Gist
 
 Security monitoring/remediation for GitHub Gists (FastAPI + vanilla-JS SPA).
 Repo: `github.com/AgenticJennifer/infinite-gist`
 
 ## Status
-- A-grade remediation work is complete locally; hosted CI publication remains.
-- **181 backend tests and 10 frontend tests passing.**
+- Core backend, frontend, security remediation, and CI configuration are in place.
+- **200 backend tests and 10 frontend tests passing locally.**
 - Scanner-core coverage now includes `secret_scanner`, `trufflehog_scanner`,
   `severity_scorer`, `evidence_masker`, `triage_service`,
   `finding_correlator`, and `temporal_analyzer`.
@@ -17,17 +17,17 @@ Repo: `github.com/AgenticJennifer/infinite-gist`
 - `SECURITY.md` documents the threat model, raw-secret lifecycle, keyed
   fingerprints, reporting process, and TruffleHog temporary-file boundary.
 - Pydantic schemas use V2 `ConfigDict` configuration.
-- `.github/workflows/ci.yml` runs lint, backend tests, and frontend tests, but
-  still needs to be committed and pushed. If GitHub rejects the workflow file,
-  grant the GitHub token the `workflow` scope in the GitHub UI.
+- `.github/workflows/ci.yml` requires lint, backend tests, frontend tests, and
+  Pyright with zero errors.
 
 ## Run it
 ```bash
-cd /home/jen/infinite-gist     # pytest MUST run from repo root
-pip install -r requirements.txt
+cd Infinite-Gist                       # pytest MUST run from repo root
+pip install -r requirements.lock
 cp .env.example .env            # set SECRET_KEY, ENCRYPTION_KEY, GitHub OAuth
-pytest tests/ -p no:cacheprovider -o addopts=""   # 181 pass
+pytest -q                                           # 200 pass
 npm run test:frontend                              # 10 pass
+pyright                                             # 0 errors
 uvicorn src.backend.main:app --port 8000
 ```
 
@@ -35,12 +35,10 @@ Gotcha: tests import `src.backend.main`, which mounts `/static` from
 `src/frontend`. Running pytest from any other cwd fails
 (`Directory 'src/frontend' does not exist`).
 
-## Remaining release step
+## Release checklist
 1. Review the working tree and create a Conventional Commit.
-2. Ensure the GitHub credential can modify workflow files (`workflow` scope for
-   classic PAT/OAuth credentials, or Actions write permission as appropriate).
-3. Push `.github/workflows/ci.yml` with the rest of the changes.
-4. Confirm all three hosted jobs pass: `lint`, `test`, and `frontend-test`.
+2. Push the changes and confirm the hosted `lint`, `test`, `frontend-test`, and
+   `type-check` jobs pass.
 
 ## Architecture in one line
 `gist_scanner` → per-file `secret_scanner` (regex) + optional
@@ -51,4 +49,3 @@ Gotcha: tests import `src.backend.main`, which mounts `/static` from
 - Conventional Commits (`fix:`, `feat:`, `chore:`, `docs:`).
 - Pydantic V2: `model_config = ConfigDict(from_attributes=True)` (no class `Config`).
 - Never store raw secrets; store masked value + keyed hash only.
-- Full review deliverables: `/home/jen/projects/repo-review/examples/infinite-gist/`

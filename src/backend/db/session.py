@@ -2,6 +2,8 @@
 Database session and engine configuration.
 """
 
+from collections.abc import Iterator
+
 from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker, Session
@@ -24,7 +26,7 @@ engine = create_engine(settings.DATABASE_URL, **_engine_kwargs(settings.DATABASE
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def get_db() -> Session:
+def get_db() -> Iterator[Session]:
     """
     Dependency function to get DB session.
     """

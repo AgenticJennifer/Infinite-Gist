@@ -8,9 +8,13 @@
 .planning
 .codegraph
 .agent
+.scratch
+graft
 
 # Python
 __pycache__
+.venv
+venv
 *.py[cod]
 *.egg-info
 dist
@@ -18,6 +22,7 @@ build
 .coverage
 htmlcov
 .pytest_cache
+tests
 
 # Database
 *.db
@@ -26,6 +31,8 @@ htmlcov
 
 # Session artifacts
 session-*.md
+Handoff for Infinite Gist Security Monitoring
+*-prd-*.md
 
 # Environment
 .env

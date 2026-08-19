@@ -4,15 +4,16 @@ Phase 3 API Endpoints Tests
 Tests for correlation, triage, evidence_masker, and trufflehog_scanner API endpoints.
 This version uses a more isolated approach to avoid complex import dependencies.
 """
+
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from datetime import datetime
 from sqlalchemy.orm import Session
 import sys
 import os
 
 # Add the src directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
 # Import what we need for testing
 from src.backend.api.v1.endpoints import gists
@@ -57,19 +58,31 @@ class TestCorrelationEndpoints:
             groups.append(group)
         return groups
 
-    def test_get_correlations_success(self, mock_db_session, mock_user, auth_headers, mock_correlation_groups):
+    def test_get_correlations_success(
+        self, mock_db_session, mock_user, auth_headers, mock_correlation_groups
+    ):
         """Test GET /correlations endpoint returns correlation groups."""
-        with patch('src.backend.api.v1.endpoints.gists.get_current_active_user',
-                   return_value=mock_user):
-            with patch('src.backend.api.v1.endpoints.gists.get_db',
-                       return_value=mock_db_session):
-                with patch('src.backend.api.v1.endpoints.gists.FindingCorrelator') as mock_correlator:
+        with patch(
+            "src.backend.api.v1.endpoints.gists.get_current_active_user",
+            return_value=mock_user,
+        ):
+            with patch(
+                "src.backend.api.v1.endpoints.gists.get_db",
+                return_value=mock_db_session,
+            ):
+                with patch(
+                    "src.backend.api.v1.endpoints.gists.FindingCorrelator"
+                ) as mock_correlator:
                     mock_instance = Mock()
-                    mock_instance.find_correlations.return_value = mock_correlation_groups
+                    mock_instance.find_correlations.return_value = (
+                        mock_correlation_groups
+                    )
                     mock_correlator.return_value = mock_instance
 
                     # Call the endpoint directly with mocks
-                    response = gists.get_correlations(current_user=mock_user, db=mock_db_session)
+                    response = gists.get_correlations(
+                        current_user=mock_user, db=mock_db_session
+                    )
 
                     # Verify response
                     assert len(response) == 3
@@ -83,14 +96,22 @@ class TestCorrelationEndpoints:
         self, mock_db_session, mock_user, auth_headers, mock_correlation_groups
     ):
         """Test GET /findings/{finding_id}/correlations endpoint."""
-        with patch('src.backend.api.v1.endpoints.gists.get_current_active_user',
-                   return_value=mock_user):
-            with patch('src.backend.api.v1.endpoints.gists.get_db',
-                       return_value=mock_db_session):
-                with patch('src.backend.api.v1.endpoints.gists.FindingCorrelator') as mock_correlator:
+        with patch(
+            "src.backend.api.v1.endpoints.gists.get_current_active_user",
+            return_value=mock_user,
+        ):
+            with patch(
+                "src.backend.api.v1.endpoints.gists.get_db",
+                return_value=mock_db_session,
+            ):
+                with patch(
+                    "src.backend.api.v1.endpoints.gists.FindingCorrelator"
+                ) as mock_correlator:
                     mock_instance = Mock()
                     # Mock find_correlations to return our test data
-                    mock_instance.find_correlations.return_value = mock_correlation_groups
+                    mock_instance.find_correlations.return_value = (
+                        mock_correlation_groups
+                    )
                     # Track calls to find_correlations
                     mock_instance.find_correlations.user_id = 1
                     mock_correlator.return_value = mock_instance
@@ -108,20 +129,30 @@ class TestCorrelationEndpoints:
                     endpoint = gists.get_finding_correlations
 
                     # Call the endpoint directly (sync function)
-                    response = endpoint(finding_id=42, current_user=mock_user, db=mock_db_session)
+                    response = endpoint(
+                        finding_id=42, current_user=mock_user, db=mock_db_session
+                    )
 
                     # Verify response - should return all correlation groups since we have a valid finding
                     assert len(response) == 3
                     assert response[0].value_hash == "hash_0"
                     # Verify access control - finding belongs to user
 
-    def test_get_correlation_insights_success(self, mock_db_session, mock_user, auth_headers):
+    def test_get_correlation_insights_success(
+        self, mock_db_session, mock_user, auth_headers
+    ):
         """Test GET /correlations/insights endpoint."""
-        with patch('src.backend.api.v1.endpoints.gists.get_current_active_user',
-                   return_value=mock_user):
-            with patch('src.backend.api.v1.endpoints.gists.get_db',
-                       return_value=mock_db_session):
-                with patch('src.backend.api.v1.endpoints.gists.FindingCorrelator') as mock_correlator:
+        with patch(
+            "src.backend.api.v1.endpoints.gists.get_current_active_user",
+            return_value=mock_user,
+        ):
+            with patch(
+                "src.backend.api.v1.endpoints.gists.get_db",
+                return_value=mock_db_session,
+            ):
+                with patch(
+                    "src.backend.api.v1.endpoints.gists.FindingCorrelator"
+                ) as mock_correlator:
                     mock_instance = Mock()
                     mock_instance.identify_correlation_patterns.return_value = {
                         "total_related_findings": 15,
@@ -192,14 +223,30 @@ class TestTriageEndpoints:
         """Test POST /triage endpoint."""
         finding_ids = [f.id for f in mock_findings[:2]]
 
-        with patch('src.backend.api.v1.endpoints.gists.get_current_active_user',
-                   return_value=mock_user):
-            with patch('src.backend.api.v1.endpoints.gists.get_db',
-                       return_value=mock_db_session):
-                with patch('src.backend.api.v1.endpoints.gists.triage_service') as mock_triage:
+        with patch(
+            "src.backend.api.v1.endpoints.gists.get_current_active_user",
+            return_value=mock_user,
+        ):
+            with patch(
+                "src.backend.api.v1.endpoints.gists.get_db",
+                return_value=mock_db_session,
+            ):
+                with patch(
+                    "src.backend.api.v1.endpoints.gists.triage_service"
+                ) as mock_triage:
                     mock_triage.triage_batch.return_value = [
-                        {"finding_id": finding_ids[0], "verdict": "escalate", "confidence": 0.6, "reason": "Test reason 1"},
-                        {"finding_id": finding_ids[1], "verdict": "accept", "confidence": 0.55, "reason": "Test reason 2"},
+                        {
+                            "finding_id": finding_ids[0],
+                            "verdict": "escalate",
+                            "confidence": 0.6,
+                            "reason": "Test reason 1",
+                        },
+                        {
+                            "finding_id": finding_ids[1],
+                            "verdict": "accept",
+                            "confidence": 0.55,
+                            "reason": "Test reason 2",
+                        },
                     ]
 
                     # Mock the db query chain for ownership verification.
@@ -214,8 +261,10 @@ class TestTriageEndpoints:
                         f.line_start = 1
                         f.content_snippet = "API_KEY=ghp_****1234"
                         return f
+
                     mock_db_session.query.return_value.join.return_value.filter.return_value.filter.return_value.all.return_value = [
-                        _mk(finding_ids[0], 0.6), _mk(finding_ids[1], 0.55)
+                        _mk(finding_ids[0], 0.6),
+                        _mk(finding_ids[1], 0.55),
                     ]
 
                     # Get the endpoint function
@@ -223,11 +272,14 @@ class TestTriageEndpoints:
 
                     # Call the endpoint and await the coroutine
                     import asyncio
-                    response = asyncio.run(endpoint(
-                        finding_ids=finding_ids,
-                        current_user=mock_user,
-                        db=mock_db_session
-                    ))
+
+                    response = asyncio.run(
+                        endpoint(
+                            finding_ids=finding_ids,
+                            current_user=mock_user,
+                            db=mock_db_session,
+                        )
+                    )
 
                     # Verify triage results
                     assert response["findings_count"] == 2
@@ -235,15 +287,16 @@ class TestTriageEndpoints:
                     assert response["triage_results"][0]["verdict"] == "escalate"
                     assert response["triage_results"][1]["verdict"] == "accept"
 
-    def test_get_triage_status_success(
-        self, mock_db_session, mock_user, auth_headers
-    ):
+    def test_get_triage_status_success(self, mock_db_session, mock_user, auth_headers):
         """Test GET /triage/status endpoint."""
-        with patch('src.backend.api.v1.endpoints.gists.get_current_active_user',
-                   return_value=mock_user):
-            with patch('src.backend.api.v1.endpoints.gists.get_db',
-                       return_value=mock_db_session):
-
+        with patch(
+            "src.backend.api.v1.endpoints.gists.get_current_active_user",
+            return_value=mock_user,
+        ):
+            with patch(
+                "src.backend.api.v1.endpoints.gists.get_db",
+                return_value=mock_db_session,
+            ):
                 # Mock database queries for status endpoint
                 mock_gist = Mock()
                 mock_gist.id = 1
@@ -256,7 +309,9 @@ class TestTriageEndpoints:
                     mock_findings.append(finding)
 
                 # Mock the gist query for user verification
-                mock_db_session.query.return_value.filter.return_value.all.return_value = [mock_gist]
+                mock_db_session.query.return_value.filter.return_value.all.return_value = [
+                    mock_gist
+                ]
                 # Mock the findings query for status calculation
                 mock_db_session.query.return_value.join.return_value.filter.return_value.all.return_value = mock_findings
                 # Mock the borderline findings query
@@ -280,10 +335,14 @@ class TestTriageEndpoints:
         finding_id = 123
         verdict = "accept"
 
-        with patch('src.backend.api.v1.endpoints.gists.get_current_active_user',
-                   return_value=mock_user):
-            with patch('src.backend.api.v1.endpoints.gists.get_db',
-                       return_value=mock_db_session):
+        with patch(
+            "src.backend.api.v1.endpoints.gists.get_current_active_user",
+            return_value=mock_user,
+        ):
+            with patch(
+                "src.backend.api.v1.endpoints.gists.get_db",
+                return_value=mock_db_session,
+            ):
                 # Mock finding for user verification
                 mock_finding = Mock()
                 mock_finding.id = finding_id
@@ -298,12 +357,15 @@ class TestTriageEndpoints:
 
                 # Call the endpoint and await the coroutine
                 import asyncio
-                response = asyncio.run(endpoint(
-                    finding_id=finding_id,
-                    verdict=verdict,
-                    current_user=mock_user,
-                    db=mock_db_session
-                ))
+
+                response = asyncio.run(
+                    endpoint(
+                        finding_id=finding_id,
+                        verdict=verdict,
+                        current_user=mock_user,
+                        db=mock_db_session,
+                    )
+                )
 
                 # Verify verdict update
                 assert response["finding_id"] == finding_id
@@ -350,11 +412,17 @@ class TestEvidenceMaskerEndpoints:
         self, mock_db_session, mock_user, auth_headers, mock_finding
     ):
         """Test POST /evidence/mask endpoint."""
-        with patch('src.backend.api.v1.endpoints.gists.get_current_active_user',
-                   return_value=mock_user):
-            with patch('src.backend.api.v1.endpoints.gists.get_db',
-                       return_value=mock_db_session):
-                with patch('src.backend.api.v1.endpoints.gists.evidence_masker') as mock_masker:
+        with patch(
+            "src.backend.api.v1.endpoints.gists.get_current_active_user",
+            return_value=mock_user,
+        ):
+            with patch(
+                "src.backend.api.v1.endpoints.gists.get_db",
+                return_value=mock_db_session,
+            ):
+                with patch(
+                    "src.backend.api.v1.endpoints.gists.evidence_masker"
+                ) as mock_masker:
                     # Mock the masked evidence result
                     mock_masked_result = Mock()
                     mock_masked_result.masked_value = "********"
@@ -374,11 +442,14 @@ class TestEvidenceMaskerEndpoints:
 
                     # Call the endpoint and await the coroutine
                     import asyncio
-                    response = asyncio.run(endpoint(
-                        finding_id=mock_finding.id,
-                        current_user=mock_user,
-                        db=mock_db_session
-                    ))
+
+                    response = asyncio.run(
+                        endpoint(
+                            finding_id=mock_finding.id,
+                            current_user=mock_user,
+                            db=mock_db_session,
+                        )
+                    )
 
                     # Verify masking results
                     assert response["finding_id"] == mock_finding.id
@@ -413,58 +484,66 @@ class TestTruffleHogEndpoints:
         """Test POST /trufflehog/scan endpoint."""
         github_account_id = 1
 
-        with patch('src.backend.api.v1.endpoints.gists.get_current_active_user',
-                   return_value=mock_user):
-            with patch('src.backend.api.v1.endpoints.gists.TruffleHogScanner.is_available',
-                       return_value=True):
-                with patch('src.backend.api.v1.endpoints.gists.TruffleHogScanner') as mock_scanner_class:
-                    # Mock scanner instance
-                    mock_scanner = Mock()
-                    mock_scanner_class.return_value = mock_scanner
+        with patch(
+            "src.backend.api.v1.endpoints.gists.get_current_active_user",
+            return_value=mock_user,
+        ):
+            with patch(
+                "src.backend.api.v1.endpoints.gists.TruffleHogScanner"
+            ) as mock_scanner_class:
+                mock_scanner = Mock()
+                mock_scanner.get_status = AsyncMock(return_value=Mock(available=True))
+                mock_scanner_class.return_value = mock_scanner
 
-                    # Mock GitHub account ownership query
-                    mock_github_account = Mock()
-                    mock_github_account.id = github_account_id
-                    mock_db_session.query.return_value.filter.return_value.filter.return_value.first.return_value = mock_github_account
+                mock_github_account = Mock()
+                mock_github_account.id = github_account_id
+                mock_db_session.query.return_value.filter.return_value.filter.return_value.first.return_value = mock_github_account
 
-                    # Mock background task setup
-                    with patch('src.backend.api.v1.endpoints.gists.BackgroundTasks') as mock_background_tasks:
-                        mock_background_task = Mock()
-                        mock_background_tasks.return_value.add_task = mock_background_task.add_task
+                with patch(
+                    "src.backend.api.v1.endpoints.gists.ScanExecutor"
+                ) as executor_class:
+                    executor_class.return_value.run_scan_for_account = AsyncMock(
+                        return_value=Mock(id=17, status="completed")
+                    )
+                    endpoint = gists.start_trufflehog_scan_endpoint
+                    import asyncio
 
-                        # Get the endpoint function
-                        endpoint = gists.start_trufflehog_scan_endpoint
-
-                        # Call the endpoint and await the coroutine
-                        import asyncio
-                        response = asyncio.run(endpoint(
+                    response = asyncio.run(
+                        endpoint(
                             github_account_id=github_account_id,
-                            background_tasks=Mock(),
                             current_user=mock_user,
-                            db=mock_db_session
-                        ))
+                            db=mock_db_session,
+                        )
+                    )
 
-                        # Verify scan initiated — endpoint returns dict, not response object
-                        assert response["status"] == "started"
-                        assert response["github_account_id"] == github_account_id
-                        assert "message" in response
+                assert response["status"] == "completed"
+                assert response["scan_id"] == 17
+                assert response["github_account_id"] == github_account_id
 
-    def test_get_trufflehog_status_success(self, mock_db_session, mock_user, auth_headers):
+    def test_get_trufflehog_status_success(
+        self, mock_db_session, mock_user, auth_headers
+    ):
         """Test GET /trufflehog/status endpoint."""
-        with patch('src.backend.api.v1.endpoints.gists.get_current_active_user',
-                   return_value=mock_user):
-            with patch('src.backend.api.v1.endpoints.gists.TruffleHogScanner.get_status',
-                       return_value=Mock(
-                           available=True,
-                           scanner_path="/usr/local/bin/trufflehog",
-                           capabilities=["s3", "github"],
-                       )):
-
+        with patch(
+            "src.backend.api.v1.endpoints.gists.get_current_active_user",
+            return_value=mock_user,
+        ):
+            with patch(
+                "src.backend.api.v1.endpoints.gists.TruffleHogScanner.get_status",
+                new=AsyncMock(
+                    return_value=Mock(
+                        available=True,
+                        scanner_path="/usr/local/bin/trufflehog",
+                        capabilities=["s3", "github"],
+                    )
+                ),
+            ):
                 # Get the endpoint function
                 endpoint = gists.get_trufflehog_status_endpoint
 
                 # Call the endpoint and await the coroutine
                 import asyncio
+
                 response = asyncio.run(endpoint(current_user=mock_user))
 
                 # Verify status

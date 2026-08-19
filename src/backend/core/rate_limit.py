@@ -13,6 +13,7 @@ from threading import Lock
 from fastapi import Depends, HTTPException, Request, status
 
 from src.backend.api.deps import get_current_active_user
+from src.backend.core.config import settings
 from src.backend.db.models import User
 
 
@@ -57,6 +58,8 @@ login_rate_limiter = RateLimiter(max_calls=20, window_seconds=60)
 
 def enforce_login_rate_limit(request: Request) -> None:
     client = request.client.host if request.client else "unknown"
-    forwarded = request.headers.get("x-forwarded-for")
+    forwarded = (
+        request.headers.get("x-forwarded-for") if settings.TRUST_PROXY_HEADERS else None
+    )
     key = forwarded.split(",")[0].strip() if forwarded else client
     login_rate_limiter.check(f"login:{key}")

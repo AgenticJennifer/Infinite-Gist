@@ -17,7 +17,7 @@ jobs:
       # Pinned: an unpinned ruff means a new release can change the default rule
       # set and red-fail CI on unchanged code. Bump this deliberately.
       # Rule selection lives in ruff.toml at the repo root.
-      - run: pip install ruff==0.16.2
+      - run: pip install ruff==0.15.21
       - run: ruff check src/
       - run: ruff format --check src/
 
@@ -29,7 +29,8 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -r requirements.txt
+          cache-dependency-path: requirements-dev.lock
+      - run: pip install -r requirements-dev.lock
       - run: pytest tests/ -v --tb=short
 
   migrations-postgres:
@@ -50,16 +51,34 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql+psycopg://infinite_gist:infinite_gist@localhost:5432/infinite_gist
-      SECRET_KEY: ci-secret-key
-      ENCRYPTION_KEY: ci-encryption-key
+      SECRET_KEY: ci-secret-key-that-is-at-least-thirty-two-characters
+      ENCRYPTION_KEY: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -r requirements.txt
+          cache-dependency-path: requirements-dev.lock
+      - run: pip install -r requirements-dev.lock
       - run: alembic upgrade head
+      - run: alembic check
+      - run: pytest tests/test_postgres_smoke.py -v --tb=short
+
+  mvp-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mvp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: mvp/requirements.lock
+      - run: pip install -r requirements.lock
+      - run: pytest -q
 
   frontend-test:
     runs-on: ubuntu-latest
@@ -70,13 +89,6 @@ jobs:
           node-version: "20"
       - run: npm run test:frontend
 
-  # Static type checking with pyright.
-  # NOTE: The codebase currently carries ~200 pre-existing pyright errors rooted in
-  # SQLAlchemy Column-vs-scalar typing friction (not real bugs). This job is
-  # intentionally NON-BLOCKING so it surfaces type regressions in the CI log
-  # without red-failing the pipeline. Once the SQLAlchemy-typing baseline is
-  # cleaned up, remove `continue-on-error` below to make type regressions a
-  # required gate. See pyrightconfig.json for the (lenient) scope/settings.
   type-check:
     runs-on: ubuntu-latest
     steps:
@@ -85,8 +97,8 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -r requirements.txt
+          cache-dependency-path: requirements-dev.lock
+      - run: pip install -r requirements-dev.lock
       - uses: jakebailey/pyright-action@v2
-        continue-on-error: true
         with:
-          version: latest
+          version: "1.1.411"

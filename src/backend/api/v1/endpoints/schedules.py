@@ -3,8 +3,9 @@ Endpoints for managing scan schedules.
 """
 
 import logging
-from typing import Optional
+from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, model_validator
 from sqlalchemy.orm import Session
 
 from src.backend.api.deps import get_current_active_user
@@ -16,6 +17,24 @@ from src.backend.services.scan_executor import ScanExecutor
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class ScheduleCreateRequest(BaseModel):
+    github_account_id: int
+    frequency: Literal["daily", "weekly", "custom"]
+    cron_expression: Optional[str] = None
+
+    @model_validator(mode="after")
+    def custom_requires_cron(self):
+        if self.frequency == "custom" and not self.cron_expression:
+            raise ValueError("cron_expression is required for custom schedules")
+        return self
+
+
+class ScheduleUpdateRequest(BaseModel):
+    frequency: Optional[Literal["daily", "weekly", "custom"]] = None
+    cron_expression: Optional[str] = None
+    enabled: Optional[bool] = None
 
 
 def _schedule_to_response(schedule: ScanSchedule) -> dict:
@@ -38,22 +57,14 @@ def _schedule_to_response(schedule: ScanSchedule) -> dict:
 
 @router.post("/")
 async def create_schedule(
-    github_account_id: int,
-    frequency: str,
-    cron_expression: Optional[str] = None,
+    request: ScheduleCreateRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
-    if frequency not in {"daily", "weekly", "custom"}:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid frequency: must be 'daily', 'weekly', or 'custom'",
-        )
-
     # Authorization: the GitHub account must belong to the requesting user.
     account = (
         db.query(GitHubAccount)
-        .filter(GitHubAccount.id == github_account_id)
+        .filter(GitHubAccount.id == request.github_account_id)
         .filter(GitHubAccount.user_id == current_user.id)
         .first()
     )
@@ -68,9 +79,9 @@ async def create_schedule(
     try:
         schedule = await service.create_schedule(
             user_id=current_user.id,
-            github_account_id=github_account_id,
-            frequency=frequency,
-            cron_expression=cron_expression,
+            github_account_id=request.github_account_id,
+            frequency=request.frequency,
+            cron_expression=request.cron_expression,
         )
         return _schedule_to_response(schedule)
     except ValueError as e:
@@ -118,21 +129,13 @@ async def get_schedule(
 @router.put("/{schedule_id}")
 async def update_schedule(
     schedule_id: int,
-    frequency: Optional[str] = None,
-    cron_expression: Optional[str] = None,
-    enabled: Optional[bool] = None,
+    request: ScheduleUpdateRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     service = SchedulerService(db)
 
-    updates = {}
-    if frequency is not None:
-        updates["frequency"] = frequency
-    if cron_expression is not None:
-        updates["cron_expression"] = cron_expression
-    if enabled is not None:
-        updates["enabled"] = enabled
+    updates = request.model_dump(exclude_unset=True)
 
     try:
         schedule = await service.update_schedule(

@@ -1,9 +1,10 @@
 """Test fixtures for Phase 3 API endpoints testing."""
+
 import sys
 import os
 
 # Add the parent directory to the path so imports work
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
@@ -15,10 +16,12 @@ from src.backend.main import app
 # Create a proper test environment
 import pytest
 
+
 # Mock database session
 @pytest.fixture
 def mock_db():
     return Mock(spec=Session)
+
 
 # Mock user for authentication
 @pytest.fixture
@@ -29,39 +32,47 @@ def mock_user():
     user.is_active = True
     return user
 
+
 # Mock auth headers
 @pytest.fixture
 def auth_headers(mock_user):
     return {"Authorization": "Bearer test_token"}
 
+
 # Mock test client
 @pytest.fixture
 def client():
-    return TestClient(app)
+    with TestClient(app) as test_client:
+        yield test_client
+
 
 # Mock correlation analyzer
 @pytest.fixture
 def mock_correlation_analyzer():
-    with patch('src.backend.api.v1.endpoints.gists.correlation_analyzer') as mock:
+    with patch("src.backend.api.v1.endpoints.gists.correlation_analyzer") as mock:
         yield mock
+
 
 # Mock triage service
 @pytest.fixture
 def mock_triage_service():
-    with patch('src.backend.api.v1.endpoints.gists.triage_service') as mock:
+    with patch("src.backend.api.v1.endpoints.gists.triage_service") as mock:
         yield mock
+
 
 # Mock evidence masker
 @pytest.fixture
 def mock_evidence_masker():
-    with patch('src.backend.api.v1.endpoints.gists.evidence_masker') as mock:
+    with patch("src.backend.api.v1.endpoints.gists.evidence_masker") as mock:
         yield mock
+
 
 # Mock trufflehog scanner
 @pytest.fixture
 def mock_trufflehog_scanner():
-    with patch('src.backend.api.v1.endpoints.gists.TruffleHogScanner') as mock:
+    with patch("src.backend.api.v1.endpoints.gists.TruffleHogScanner") as mock:
         yield mock
+
 
 # Mock finding models
 @pytest.fixture
@@ -80,6 +91,7 @@ def mock_finding():
     finding.status = Mock()
     finding.status.value = "new"
     return finding
+
 
 # Mock findings for batch operations
 @pytest.fixture
@@ -102,6 +114,7 @@ def mock_findings():
         findings.append(finding)
     return findings
 
+
 # Mock github account
 @pytest.fixture
 def mock_github_account():
@@ -111,6 +124,7 @@ def mock_github_account():
     account.username = "testuser"
     account.token = "test_token"
     return account
+
 
 # Mock scan result
 @pytest.fixture
@@ -127,6 +141,7 @@ def mock_scan_result():
     scan.error_message = None
     return scan
 
+
 # Mock temporal analysis
 @pytest.fixture
 def mock_temporal_analysis():
@@ -138,31 +153,34 @@ def mock_temporal_analysis():
     analysis.posture_trend = "stable"
     analysis.first_detected = "2024-01-01T00:00:00"
     analysis.last_detected = "2024-01-02T00:00:00"
-    
+
     # Mock events
     events = []
     for i in range(5):
         event = Mock()
-        event.timestamp = f"2024-01-0{i+1}T00:0{i+1}:00"
+        event.timestamp = f"2024-01-0{i + 1}T00:0{i + 1}:00"
         event.event_type = "scan"
         event.gist_id = 1
         event.finding_id = i + 1
-        event.details = f"Scan event {i+1}"
+        event.details = f"Scan event {i + 1}"
         events.append(event)
     analysis.events = events
     return analysis
 
+
 # Mock finding correlator
 @pytest.fixture
 def mock_finding_correlator():
-    with patch('src.backend.api.v1.endpoints.gists.FindingCorrelator') as mock:
+    with patch("src.backend.api.v1.endpoints.gists.FindingCorrelator") as mock:
         yield mock
+
 
 # Mock temporal analyzer
 @pytest.fixture
 def mock_temporal_analyzer():
-    with patch('src.backend.api.v1.endpoints.gists.TemporalAnalyzer') as mock:
+    with patch("src.backend.api.v1.endpoints.gists.TemporalAnalyzer") as mock:
         yield mock
+
 
 # Mock secret match for correlation tests
 @pytest.fixture

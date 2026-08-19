@@ -9,6 +9,7 @@ from src.backend.db.models import Finding
 from src.backend.services.policy_service import PolicyService
 from src.backend.services.remediation_service import RemediationService
 from src.backend.services.audit_service import AuditService
+from src.backend.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ class AutoRemediationService:
         self.policy_service = PolicyService(db)
         self.remediation_service = RemediationService(db)
         self.audit_service = AuditService(db)
+        self.notification_service = NotificationService(db)
 
     async def check_and_remediate(self, finding: Finding, user_id: int):
         """
@@ -43,17 +45,21 @@ class AutoRemediationService:
             return None
 
         try:
-            action = await self.remediation_service.make_private(finding.id, user_id)
+            action = await self.remediation_service.replace_with_secret(
+                finding.id, user_id
+            )
 
             await self.audit_service.log_event(
                 user_id=user_id,
                 event_type="auto_remediation_executed",
                 event_description=(
                     f"Auto-remediated finding {finding.id} "
-                    f"(type: {finding_type}) by making gist private"
+                    f"(type: {finding_type}) by replacing it with a secret Gist"
                 ),
                 details={"finding_id": finding.id, "finding_type": finding_type},
             )
+
+            await self.notification_service.notify_remediation_complete(action)
 
             return action
 
@@ -84,11 +90,15 @@ class AutoRemediationService:
         """
         results = []
 
+        processed_gists: set[int] = set()
         for finding in findings:
+            if finding.gist_id in processed_gists:
+                continue
             try:
                 action = await self.check_and_remediate(finding, user_id)
                 if action is not None:
                     results.append((finding, action))
+                    processed_gists.add(finding.gist_id)
             except Exception as e:
                 logger.error(
                     f"Batch auto-remediation failed for finding {finding.id}: {e}"

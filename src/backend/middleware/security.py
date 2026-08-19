@@ -2,6 +2,8 @@
 Security middleware — headers, CSRF, request limits.
 """
 
+import hmac
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -110,11 +112,14 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         if auth_header.startswith("Bearer "):
             return await call_next(request)
 
-        # Check for CSRF token header on cookie-based requests
+        # Enforce double-submit CSRF for cookie-authenticated requests.
         csrf_token = request.headers.get("x-csrf-token")
-        session_token = request.cookies.get("csrf_token")
-
-        if session_token and csrf_token != session_token:
+        csrf_cookie = request.cookies.get("csrf_token")
+        if request.cookies.get("session_token") and (
+            not csrf_token
+            or not csrf_cookie
+            or not hmac.compare_digest(csrf_token, csrf_cookie)
+        ):
             return JSONResponse(
                 status_code=403,
                 content={"detail": "CSRF token mismatch"},
