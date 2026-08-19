@@ -5,7 +5,7 @@ Endpoints for managing GitHub gists and scanning for secrets.
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.backend.api.deps import get_current_active_user
@@ -29,6 +29,7 @@ from src.backend.schemas.gists import (
     ScanResponse,
     ScanResultResponse,
     TemporalAnalysisResponse,
+    TemporalEventResponse,
 )
 from src.backend.services.evidence_masker import EvidenceMasker
 from src.backend.services.finding_correlator import FindingCorrelator
@@ -229,27 +230,31 @@ async def get_temporal_analysis(
             status_code=status.HTTP_404_NOT_FOUND, detail="Gist not found"
         )
 
-    analyzer = TemporalAnalyzer(db)
-    analysis = analyzer.analyze(gist_id)
+    analyzer = TemporalAnalyzer()
+    analysis = analyzer.analyze_gist_history(gist_id, db)
+    posture = analyzer.analyze_user_posture(current_user.id, db)
+
+    first_detected = min(analysis.first_seen.values(), default=None)
+    last_detected = max(analysis.last_seen.values(), default=None)
 
     return TemporalAnalysisResponse(
         gist_id=gist_id,
-        total_events=analysis.total_events,
-        re_exposure_count=analysis.re_exposure_count,
-        persistence_count=analysis.persistence_count,
-        posture_trend=_enum_to_str(analysis.posture_trend),
+        total_events=len(analysis.events),
+        re_exposure_count=len(analysis.re_exposures),
+        persistence_count=sum(analysis.persistence_counts.values()),
+        posture_trend=posture["findings_trend"],
         events=[
-            {
-                "timestamp": e.timestamp,
-                "event_type": e.event_type,
-                "gist_id": e.gist_id,
-                "finding_id": e.finding_id,
-                "details": e.severity,
-            }
+            TemporalEventResponse(
+                timestamp=e.timestamp,
+                event_type=e.event_type,
+                gist_id=e.gist_id,
+                finding_id=e.finding_id,
+                details=e.severity,
+            )
             for e in analysis.events
         ],
-        first_detected=analysis.first_detected,
-        last_detected=analysis.last_detected,
+        first_detected=first_detected,
+        last_detected=last_detected,
     )
 
 
@@ -292,10 +297,8 @@ async def get_finding_stats(
 ):
     # Use a subquery to filter findings by user's gists in a single query
     # This avoids N+1 pattern of fetching all gist IDs first
-    user_gist_subquery = (
-        db.query(Gist.id).filter(Gist.user_id == current_user.id).subquery()
-    )
-    base_q = db.query(Finding).filter(Finding.gist_id.in_(user_gist_subquery))
+    user_gist_ids = select(Gist.id).where(Gist.user_id == current_user.id)
+    base_q = db.query(Finding).filter(Finding.gist_id.in_(user_gist_ids))
 
     total = base_q.count()
 

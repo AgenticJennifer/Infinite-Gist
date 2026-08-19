@@ -1,29 +1,21 @@
-"""
-Database models for Infinite Gist application.
-"""
+"""Database models for Infinite Gist application."""
 
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    Boolean,
-    DateTime,
-    ForeignKey,
-    Text,
-    Date,
-    Enum,
-)
-from sqlalchemy.orm import declarative_base, relationship
-from datetime import datetime, timezone
+from __future__ import annotations
+
 import enum
+from datetime import date, datetime, timezone
+
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 def _now() -> datetime:
-    """Timezone-aware 'now' used as a SQLAlchemy column default."""
+    """Return a timezone-aware timestamp for SQLAlchemy column defaults."""
     return datetime.now(timezone.utc)
 
 
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
 
 
 class UserRole(str, enum.Enum):
@@ -50,251 +42,299 @@ class SeverityLevel(str, enum.Enum):
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True, nullable=False)
-    username = Column(String, unique=True, index=True, nullable=False)
-    full_name = Column(String)
-    hashed_password = Column(String)
-    is_active = Column(Boolean, default=True)
-    role = Column(Enum(UserRole), default=UserRole.USER)
-    created_at = Column(DateTime, default=_now)
-    updated_at = Column(DateTime, default=_now, onupdate=_now)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    username: Mapped[str] = mapped_column(
+        String, unique=True, index=True, nullable=False
+    )
+    full_name: Mapped[str | None] = mapped_column(String)
+    hashed_password: Mapped[str | None] = mapped_column(String)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=True)
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole), default=UserRole.USER, nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=_now, onupdate=_now, nullable=True
+    )
 
 
 class GitHubAccount(Base):
     __tablename__ = "github_accounts"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    github_id = Column(String, unique=True, index=True, nullable=False)
-    username = Column(String, nullable=False)
-    access_token_encrypted = Column(String, nullable=False)  # Encrypted access token
-    refresh_token_encrypted = Column(String)  # Encrypted refresh token
-    token_expires_at = Column(DateTime)
-    scope = Column(String)
-    created_at = Column(DateTime, default=_now)
-    updated_at = Column(DateTime, default=_now, onupdate=_now)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    github_id: Mapped[str] = mapped_column(
+        String, unique=True, index=True, nullable=False
+    )
+    username: Mapped[str] = mapped_column(String, nullable=False)
+    access_token_encrypted: Mapped[str] = mapped_column(String, nullable=False)
+    refresh_token_encrypted: Mapped[str | None] = mapped_column(String)
+    token_expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    scope: Mapped[str | None] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=_now, onupdate=_now, nullable=True
+    )
 
-    # Relationship
-    user = relationship("User", backref="github_accounts")
+    user: Mapped[User] = relationship(backref="github_accounts")
 
 
 class Gist(Base):
     __tablename__ = "gists"
 
-    id = Column(Integer, primary_key=True, index=True)
-    github_id = Column(String, unique=True, index=True, nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    description = Column(Text)
-    public = Column(Boolean, default=False)
-    deleted = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime)
-    updated_at = Column(DateTime)
-    pushed_at = Column(DateTime)
-    last_synced_at = Column(DateTime, default=_now)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    github_id: Mapped[str] = mapped_column(
+        String, unique=True, index=True, nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
+    description: Mapped[str | None] = mapped_column(Text)
+    public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
+    deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime)
+    pushed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_synced_at: Mapped[datetime] = mapped_column(
+        DateTime, default=_now, nullable=True
+    )
 
-    # Relationship
-    user = relationship("User", backref="gists")
+    user: Mapped[User] = relationship(backref="gists")
 
 
 class GistFile(Base):
     __tablename__ = "gist_files"
 
-    id = Column(Integer, primary_key=True, index=True)
-    gist_id = Column(Integer, ForeignKey("gists.id"), nullable=False)
-    filename = Column(String, nullable=False)
-    content = Column(Text)
-    language = Column(String)
-    size = Column(Integer)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    gist_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("gists.id"), nullable=False
+    )
+    filename: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[str | None] = mapped_column(Text)
+    language: Mapped[str | None] = mapped_column(String)
+    size: Mapped[int | None] = mapped_column(Integer)
 
-    # Relationship
-    gist = relationship("Gist", backref="files")
+    gist: Mapped[Gist] = relationship(backref="files")
 
 
 class GistRevision(Base):
     __tablename__ = "gist_revisions"
 
-    id = Column(Integer, primary_key=True, index=True)
-    gist_id = Column(Integer, ForeignKey("gists.id"), nullable=False)
-    version = Column(String, nullable=False)  # GitHub uses SHA for versions
-    committed_at = Column(DateTime)
-    # We'll store file contents for each revision or just reference them
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    gist_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("gists.id"), nullable=False
+    )
+    version: Mapped[str] = mapped_column(String, nullable=False)
+    committed_at: Mapped[datetime | None] = mapped_column(DateTime)
 
-    # Relationship
-    gist = relationship("Gist", backref="revisions")
+    gist: Mapped[Gist] = relationship(backref="revisions")
 
 
 class Finding(Base):
     __tablename__ = "findings"
 
-    id = Column(Integer, primary_key=True, index=True)
-    gist_id = Column(Integer, ForeignKey("gists.id"), nullable=False, index=True)
-    gist_file_id = Column(Integer, ForeignKey("gist_files.id"))
-    gist_revision_id = Column(Integer, ForeignKey("gist_revisions.id"))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    gist_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("gists.id"), nullable=False, index=True
+    )
+    gist_file_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("gist_files.id")
+    )
+    gist_revision_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("gist_revisions.id")
+    )
 
-    # Finding details
-    file_path = Column(String)
-    line_start = Column(Integer)
-    line_end = Column(Integer)
-    content_snippet = Column(Text)  # Limited excerpt for context
-    finding_type = Column(String)  # e.g., "aws_key", "private_key", "password"
-    secret_type = Column(String)  # More specific categorization
+    file_path: Mapped[str | None] = mapped_column(String)
+    line_start: Mapped[int | None] = mapped_column(Integer)
+    line_end: Mapped[int | None] = mapped_column(Integer)
+    content_snippet: Mapped[str | None] = mapped_column(Text)
+    finding_type: Mapped[str | None] = mapped_column(String)
+    secret_type: Mapped[str | None] = mapped_column(String)
 
-    # Risk assessment
-    severity = Column(Enum(SeverityLevel), nullable=False)
-    confidence = Column(Integer)  # 0-100
+    severity: Mapped[SeverityLevel] = mapped_column(Enum(SeverityLevel), nullable=False)
+    confidence: Mapped[int | None] = mapped_column(Integer)
 
-    # Evidence (masked for security)
-    masked_value = Column(String)  # First/last chars with asterisks in middle
-    value_hash = Column(
-        String, unique=True, index=True
-    )  # Hash of original for deduplication
+    masked_value: Mapped[str | None] = mapped_column(String)
+    value_hash: Mapped[str | None] = mapped_column(String, unique=True, index=True)
 
-    # Metadata
-    detected_at = Column(DateTime, default=_now)
-    status = Column(Enum(FindingStatus), default=FindingStatus.NEW)
+    detected_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=True)
+    status: Mapped[FindingStatus] = mapped_column(
+        Enum(FindingStatus), default=FindingStatus.NEW, nullable=True
+    )
 
-    # Relationships
-    gist = relationship("Gist", backref="findings")
-    gist_file = relationship("GistFile", backref="findings")
-    gist_revision = relationship("GistRevision", backref="findings")
+    gist: Mapped[Gist] = relationship(backref="findings")
+    gist_file: Mapped[GistFile | None] = relationship(backref="findings")
+    gist_revision: Mapped[GistRevision | None] = relationship(backref="findings")
 
 
 class ScanRun(Base):
     __tablename__ = "scan_runs"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    started_at = Column(DateTime, default=_now)
-    ended_at = Column(DateTime)
-    status = Column(String)  # "running", "completed", "failed"
-    gists_scanned = Column(Integer, default=0)
-    findings_count = Column(Integer, default=0)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=True)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime)
+    status: Mapped[str | None] = mapped_column(String)
+    gists_scanned: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
+    findings_count: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
 
-    # Relationship
-    user = relationship("User", backref="scan_runs")
+    user: Mapped[User] = relationship(backref="scan_runs")
 
 
 class ScanResult(Base):
     __tablename__ = "scan_results"
 
-    id = Column(Integer, primary_key=True, index=True)
-    gist_id = Column(Integer, ForeignKey("gists.id"), nullable=False)
-    scan_type = Column(String, nullable=False)
-    status = Column(String, default="pending")
-    started_at = Column(DateTime, default=_now)
-    completed_at = Column(DateTime)
-    secrets_found = Column(Integer, default=0)
-    files_scanned = Column(Integer, default=0)
-    error_message = Column(Text)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    gist_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("gists.id"), nullable=False
+    )
+    scan_type: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, default="pending", nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    secrets_found: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
+    files_scanned: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text)
 
-    # Relationship
-    gist = relationship("Gist", backref="scan_results")
+    gist: Mapped[Gist] = relationship(backref="scan_results")
 
 
 class AuditEvent(Base):
     __tablename__ = "audit_events"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), index=True)
-    event_type = Column(String, nullable=False, index=True)
-    event_description = Column(Text)
-    details = Column(Text)  # JSON-serialized structured details
-    ip_address = Column(String)
-    user_agent = Column(String)
-    created_at = Column(DateTime, default=_now)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), index=True
+    )
+    event_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    event_description: Mapped[str | None] = mapped_column(Text)
+    details: Mapped[str | None] = mapped_column(Text)
+    ip_address: Mapped[str | None] = mapped_column(String)
+    user_agent: Mapped[str | None] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=True)
 
-    user = relationship("User", backref="audit_events")
+    user: Mapped[User | None] = relationship(backref="audit_events")
 
 
 class RemediationAction(Base):
     __tablename__ = "remediation_actions"
 
-    id = Column(Integer, primary_key=True, index=True)
-    finding_id = Column(Integer, ForeignKey("findings.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    action_type = Column(String, nullable=False)
-    status = Column(String, default="pending", index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    finding_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("findings.id"), nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    action_type: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String, default="pending", index=True, nullable=True
+    )
 
-    requested_at = Column(DateTime, default=_now)
-    executed_at = Column(DateTime)
-    completed_at = Column(DateTime)
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime, default=_now, nullable=True
+    )
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
 
-    github_response = Column(Text)
-    error_message = Column(Text)
+    github_response: Mapped[str | None] = mapped_column(Text)
+    error_message: Mapped[str | None] = mapped_column(Text)
 
-    verified = Column(Boolean, default=False)
-    verified_at = Column(DateTime)
-    verification_details = Column(Text)
+    verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime)
+    verification_details: Mapped[str | None] = mapped_column(Text)
 
-    finding = relationship("Finding", backref="remediation_actions")
-    user = relationship("User", backref="remediation_actions")
+    finding: Mapped[Finding] = relationship(backref="remediation_actions")
+    user: Mapped[User] = relationship(backref="remediation_actions")
 
 
 class ScanSchedule(Base):
     __tablename__ = "scan_schedules"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    github_account_id = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    github_account_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("github_accounts.id"), nullable=False
     )
-    frequency = Column(String, nullable=False)  # "daily", "weekly", "custom"
-    cron_expression = Column(String)
-    enabled = Column(Boolean, default=True, index=True)
-    last_run_at = Column(DateTime)
-    next_run_at = Column(DateTime, index=True)
-    created_at = Column(DateTime, default=_now)
-    updated_at = Column(DateTime, default=_now, onupdate=_now)
+    frequency: Mapped[str] = mapped_column(String, nullable=False)
+    cron_expression: Mapped[str | None] = mapped_column(String)
+    enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, index=True, nullable=True
+    )
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=_now, onupdate=_now, nullable=True
+    )
 
-    user = relationship("User", backref="scan_schedules")
-    github_account = relationship("GitHubAccount", backref="scan_schedules")
+    user: Mapped[User] = relationship(backref="scan_schedules")
+    github_account: Mapped[GitHubAccount] = relationship(backref="scan_schedules")
 
 
 class AccountPolicy(Base):
     __tablename__ = "account_policies"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
-    auto_remediate = Column(Boolean, default=False)
-    auto_remediate_types = Column(Text)  # JSON array of finding types
-    notify_on_scan = Column(Boolean, default=True)
-    notify_on_finding = Column(Boolean, default=True)
-    digest_frequency = Column(String, default="weekly")  # "daily", "weekly", "none"
-    created_at = Column(DateTime, default=_now)
-    updated_at = Column(DateTime, default=_now, onupdate=_now)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, unique=True
+    )
+    auto_remediate: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
+    auto_remediate_types: Mapped[str | None] = mapped_column(Text)
+    notify_on_scan: Mapped[bool] = mapped_column(Boolean, default=True, nullable=True)
+    notify_on_finding: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=True
+    )
+    digest_frequency: Mapped[str] = mapped_column(
+        String, default="weekly", nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=_now, onupdate=_now, nullable=True
+    )
 
-    user = relationship("User", backref="account_policies")
+    user: Mapped[User] = relationship(backref="account_policies")
 
 
 class SecurityTrend(Base):
     __tablename__ = "security_trends"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    date = Column(Date, nullable=False)
-    total_findings = Column(Integer, default=0)
-    critical_findings = Column(Integer, default=0)
-    high_findings = Column(Integer, default=0)
-    medium_findings = Column(Integer, default=0)
-    low_findings = Column(Integer, default=0)
-    gists_scanned = Column(Integer, default=0)
-    remediated_count = Column(Integer, default=0)
-    created_at = Column(DateTime, default=_now)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    total_findings: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
+    critical_findings: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
+    high_findings: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
+    medium_findings: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
+    low_findings: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
+    gists_scanned: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
+    remediated_count: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=True)
 
-    user = relationship("User", backref="security_trends")
+    user: Mapped[User] = relationship(backref="security_trends")
 
 
 class DigestReport(Base):
     __tablename__ = "digest_reports"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    report_type = Column(String, nullable=False)  # "daily", "weekly"
-    period_start = Column(DateTime, nullable=False)
-    period_end = Column(DateTime, nullable=False)
-    summary = Column(Text)  # JSON summary string
-    sent_at = Column(DateTime)
-    created_at = Column(DateTime, default=_now)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    report_type: Mapped[str] = mapped_column(String, nullable=False)
+    period_start: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    period_end: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=True)
 
-    user = relationship("User", backref="digest_reports")
+    user: Mapped[User] = relationship(backref="digest_reports")

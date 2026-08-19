@@ -10,19 +10,27 @@ from datetime import datetime
 # Ensure project root is importable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from src.backend.db.models import (
-    Base, User, GitHubAccount, Gist, GistFile, Finding,
-    SeverityLevel, FindingStatus, UserRole,
+    Base,
+    User,
+    GitHubAccount,
+    Gist,
+    Finding,
+    SeverityLevel,
+    FindingStatus,
+    UserRole,
 )
-from src.backend.services.secret_scanner import SecretScanner, scan_content
+from src.backend.services.secret_scanner import scan_content
 from src.backend.services.severity_scorer import SeverityScorer
 from src.backend.services.evidence_masker import EvidenceMasker
 
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture(scope="module")
 def engine():
@@ -43,11 +51,13 @@ def db(engine):
     yield session
 
     session.close()
-    transaction.rollback()
+    if transaction.is_active:
+        transaction.rollback()
     connection.close()
 
 
 # ── User & Auth Tests ──────────────────────────────────────────────────────
+
 
 class TestUserOperations:
     def test_create_user(self, db):
@@ -73,8 +83,9 @@ class TestUserOperations:
         db.commit()
 
         db.add(u2)
-        with pytest.raises(Exception):  # IntegrityError
+        with pytest.raises(IntegrityError):
             db.commit()
+        db.rollback()
 
     def test_github_account_link(self, db):
         user = User(email="gh@test.com", username="ghuser", is_active=True)
@@ -96,6 +107,7 @@ class TestUserOperations:
 
 
 # ── Gist & Finding Tests ───────────────────────────────────────────────────
+
 
 class TestGistAndFindingOperations:
     def _make_user(self, db):
@@ -132,7 +144,7 @@ class TestGistAndFindingOperations:
             file_path="config.py",
             line_start=10,
             line_end=10,
-            content_snippet="API_KEY = \"sk-...\"",
+            content_snippet='API_KEY = "sk-..."',
             finding_type="api_key",
             secret_type="api_key",
             severity=SeverityLevel.HIGH,
@@ -180,6 +192,7 @@ class TestGistAndFindingOperations:
 
 # ── Scanner Integration Tests ──────────────────────────────────────────────
 
+
 class TestScannerIntegration:
     def test_secret_scanner_detects_aws_key(self):
         content = 'AWS_ACCESS_KEY_ID = "AKIAIOSFODNN7EXAMPLE"\nAWS_SECRET_ACCESS_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
@@ -218,6 +231,7 @@ class TestScannerIntegration:
 
 # ── Evidence Masker Tests ──────────────────────────────────────────────────
 
+
 class TestEvidenceMasker:
     def test_mask_preserves_format(self):
         masker = EvidenceMasker()
@@ -239,6 +253,7 @@ class TestEvidenceMasker:
 
 
 # ── Severity Scorer Tests ──────────────────────────────────────────────────
+
 
 class TestSeverityScorer:
     def test_private_key_is_critical(self):
@@ -279,6 +294,7 @@ class TestSeverityScorer:
 
 
 # ── Audit Trail Tests ──────────────────────────────────────────────────────
+
 
 class TestAuditTrail:
     def test_create_audit_event(self, db):

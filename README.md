@@ -82,8 +82,7 @@ infinite-gist/
 │   │   ├── db/            # SQLAlchemy models
 │   │   ├── services/      # Business logic
 │   │   └── main.py        # App entry point
-│   ├── frontend/          # Static HTML/CSS/JS
-│   └── shared/            # Shared utilities
+│   └── frontend/          # Static HTML/CSS/JS
 ├── tests/                 # Pytest test suite
 ├── docs/                  # Documentation
 ├── DESIGN.md              # Design tokens and theme
@@ -109,14 +108,21 @@ infinite-gist/
 ### Run Tests
 
 ```bash
-pytest tests/ -p no:cacheprovider -o addopts=""
+# Run from the repository root because the app mounts src/frontend at import time.
+pytest -q
+
+# Dependency-free frontend tests (Node.js 20+)
 npm run test:frontend
+
+# The historical MVP has its own isolated suite.
+cd mvp && pytest -q
 ```
 
 ### Run Linter
 
 ```bash
 ruff check src/
+pyright
 ```
 
 ### Database Migrations
@@ -145,13 +151,13 @@ Please report security issues privately via [GitHub Security Advisories](https:/
 
 ## Status
 
-**Backend: complete.** All 4 planned phases (detection, credible detection/correlation, remediation, continuous operation) are implemented. The suite has 181 passing tests, including scanner-core and pipeline security coverage for masking, keyed fingerprints, correlation, temporal analysis, and remediation. See `.planning/ROADMAP.md` for phase detail.
+**Backend: complete.** All 4 planned phases (detection, credible detection/correlation, remediation, continuous operation) are implemented. The suite has 200 passing tests, and Pyright reports zero errors. Coverage includes scanner-core and pipeline security behavior for masking, keyed fingerprints, correlation, temporal analysis, and remediation. See `.planning/ROADMAP.md` for phase detail.
 
 **Frontend: functional, accessibility-hardened, and tested.** `src/frontend/` is a vanilla JS single-page app served by FastAPI at `/`. Ten dependency-free Node tests cover API behavior, OAuth callback gating, authentication cleanup, duplicate-action prevention, malformed responses, and XSS-sensitive rendering helpers.
 
 ## Roadmap
 
-- [ ] Visual/UX polish pass (`/impeccable polish`)
+- [ ] UI polish and onboarding refinements
 - [ ] Secret rotation integration
 - [ ] Slack/email notifications
 - [ ] Team collaboration features

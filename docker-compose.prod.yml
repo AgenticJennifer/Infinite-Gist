@@ -1,7 +1,5 @@
-version: "3.9"
-
-# Production override — adds PostgreSQL and removes source mounts.
-# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Production stack with PostgreSQL and no source mounts.
+# Usage: docker compose -f docker-compose.prod.yml up -d
 
 services:
   api:
@@ -13,9 +11,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql+psycopg://infinite_gist:infinite_gist@db:5432/infinite_gist
-    volumes:
-      - sqlite_data:/app/data
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-infinite_gist}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-infinite_gist}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -30,19 +26,16 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: infinite_gist
-      POSTGRES_PASSWORD: infinite_gist
-      POSTGRES_DB: infinite_gist
+      POSTGRES_USER: ${POSTGRES_USER:-infinite_gist}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-infinite_gist}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U infinite_gist"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-infinite_gist} -d ${POSTGRES_DB:-infinite_gist}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
 volumes:
-  sqlite_data:
   postgres_data:

@@ -17,7 +17,7 @@ from src.backend.db.models import (
     Finding,
     FindingStatus,
 )
-from src.backend.db.session import get_db
+from src.backend.db.session import SessionLocal
 from src.backend.core.config import settings
 from src.backend.services.github_service import (
     GitHubService,
@@ -290,7 +290,7 @@ class GistScannerService:
 
 async def scan_github_account(github_account_id: int) -> List[Finding]:
     """Convenience function — scan all gists for a GitHub account."""
-    db = next(get_db())
+    db = SessionLocal()
     try:
         scanner = GistScannerService(db)
         return await scanner.scan_github_account(github_account_id)

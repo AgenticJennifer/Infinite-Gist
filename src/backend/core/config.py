@@ -6,7 +6,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 from typing import List
 import logging
-import os
 import secrets
 
 
@@ -61,14 +60,15 @@ settings = Settings()
 # so they are never empty — but a freshly generated value changes on every
 # restart, invalidating all existing JWTs / OAuth state tokens and making
 # previously-encrypted GitHub tokens undecryptable. Production MUST set these
-# in .env. We detect the default by checking the process environment.
-if not os.environ.get("SECRET_KEY"):
+# in .env. Pydantic tracks values loaded from both the process environment and
+# dotenv in model_fields_set; defaults are omitted from that set.
+if "SECRET_KEY" not in settings.model_fields_set:
     logger.warning(
         "SECRET_KEY is not set in the environment — a random value is generated "
         "on every restart, invalidating existing JWTs and OAuth state tokens. "
         "Set SECRET_KEY in .env for any non-dev deployment."
     )
-if not os.environ.get("ENCRYPTION_KEY"):
+if "ENCRYPTION_KEY" not in settings.model_fields_set:
     logger.warning(
         "ENCRYPTION_KEY is not set in the environment — a random value is "
         "generated on every restart, making previously encrypted GitHub tokens "

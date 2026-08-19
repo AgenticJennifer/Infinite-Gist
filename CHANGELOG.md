@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Migrated the ORM models to SQLAlchemy 2 typed declarations.
+- Made Pyright a required zero-error CI gate.
+- Replaced the workstation-wide dependency snapshot with a Python 3.11 project lock.
+- Made Docker startup apply database migrations before serving requests.
+
+### Fixed
+
+- Closed test clients and database transactions cleanly so the test suite exits without warnings.
+- Corrected temporal-analysis endpoint wiring and response mapping.
+- Recognized security keys loaded from `.env` instead of reporting false startup warnings.
+- Removed deprecated Passlib usage while preserving bcrypt password compatibility.
+
 ## [0.1.0] - 2026-07-13
 
 ### Added
