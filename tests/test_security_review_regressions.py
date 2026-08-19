@@ -186,8 +186,9 @@ def test_create_schedule_rejects_other_users_account():
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
             schedules_module.create_schedule(
-                github_account_id=999,
-                frequency="daily",
+                request=schedules_module.ScheduleCreateRequest(
+                    github_account_id=999, frequency="daily"
+                ),
                 current_user=_user_with_role(UserRole.USER),
                 db=db,
             )
@@ -203,16 +204,11 @@ def test_create_schedule_invalid_frequency():
         Mock()
     )
 
-    with pytest.raises(HTTPException) as exc:
-        asyncio.run(
-            schedules_module.create_schedule(
-                github_account_id=5,
-                frequency="hourly",  # not allowed
-                current_user=_user_with_role(UserRole.USER),
-                db=db,
-            )
+    with pytest.raises(ValueError):
+        schedules_module.ScheduleCreateRequest(
+            github_account_id=5,
+            frequency="hourly",
         )
-    assert exc.value.status_code == 400
 
 
 def test_create_schedule_owner_succeeds():
@@ -228,8 +224,9 @@ def test_create_schedule_owner_succeeds():
         svc.create_schedule = AsyncMock(return_value=_fake_schedule())
         resp = asyncio.run(
             schedules_module.create_schedule(
-                github_account_id=5,
-                frequency="daily",
+                request=schedules_module.ScheduleCreateRequest(
+                    github_account_id=5, frequency="daily"
+                ),
                 current_user=_user_with_role(UserRole.USER),
                 db=db,
             )

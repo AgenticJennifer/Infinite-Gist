@@ -93,12 +93,12 @@ class TruffleHogScanner:
         matches: List[SecretMatch] = []
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            target_dir = os.path.join(tmpdir, "repo")
+            target_dir = f"{tmpdir}/repo"
             os.makedirs(target_dir, exist_ok=True)
 
-            # Write content as a file so TruffleHog can scan it
-            target_file = os.path.join(target_dir, file_path or "content")
-            with open(target_file, "w") as f:
+            # Never use the untrusted Gist filename as a local path.
+            target_file = f"{target_dir}/content.txt"
+            with open(target_file, "w", encoding="utf-8") as f:
                 f.write(content)
 
             # Initialize as a git repo so TruffleHog can scan it
@@ -193,7 +193,9 @@ class TruffleHogScanner:
             file_info = source_metadata.get("File", "") or {}
 
             # Extract file path and line info
-            found_file = file_info.get("path", file_path)
+            found_file = file_info.get("path") or file_path or "content"
+            if found_file.endswith("/content.txt") or found_file == "content.txt":
+                found_file = file_path or "content"
             line_start = file_info.get("line_start", 0)
 
             # Map detector type
@@ -224,21 +226,12 @@ class TruffleHogScanner:
             logger.warning("Failed to normalize TruffleHog finding: %s", e)
             return None
 
-    @staticmethod
-    def get_status() -> ScannerStatus:
-        """Return current scanner status as a simple object."""
+    async def get_status(self) -> ScannerStatus:
+        """Return scanner status based on the installed binary."""
         return ScannerStatus(
-            available=False,
-            scanner_path=getattr(settings, "TRUFFLEHOG_PATH", "trufflehog"),
+            available=await self.is_available(),
+            scanner_path=self.trufflehog_path,
             capabilities=["filesystem", "json"],
-        )
-
-    @staticmethod
-    def scan_account(github_account_id: int) -> None:
-        """Dummy scan account — real implementation in future."""
-        logger.info(
-            "TruffleHog scan_account called for account %d (not yet implemented)",
-            github_account_id,
         )
 
     @staticmethod

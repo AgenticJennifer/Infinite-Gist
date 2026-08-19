@@ -4,6 +4,7 @@ Scheduler service for managing periodic scan schedules.
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from croniter import croniter
 from sqlalchemy.orm import Session
 
 from src.backend.db.models import ScanSchedule
@@ -17,16 +18,20 @@ class SchedulerService:
         self.db = db
         self.audit_service = AuditService(db)
 
-    def _calculate_next_run(self, frequency: str) -> datetime:
+    def _calculate_next_run(
+        self, frequency: str, cron_expression: Optional[str] = None
+    ) -> datetime:
         """Calculate next run time based on frequency."""
         now = datetime.now(timezone.utc)
         if frequency == "daily":
             return now + timedelta(days=1)
         elif frequency == "weekly":
             return now + timedelta(weeks=1)
-        else:
-            # custom or unknown — default to 1 day
-            return now + timedelta(days=1)
+        elif frequency == "custom":
+            if not cron_expression or not croniter.is_valid(cron_expression):
+                raise ValueError("A valid five-field cron expression is required")
+            return croniter(cron_expression, now).get_next(datetime)
+        raise ValueError("Frequency must be daily, weekly, or custom")
 
     async def create_schedule(
         self,
@@ -53,7 +58,7 @@ class SchedulerService:
             frequency=frequency,
             cron_expression=cron_expression,
             enabled=True,
-            next_run_at=self._calculate_next_run(frequency),
+            next_run_at=self._calculate_next_run(frequency, cron_expression),
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )
@@ -97,15 +102,19 @@ class SchedulerService:
             raise ValueError(f"Schedule {schedule_id} not found")
 
         allowed_fields = {"frequency", "cron_expression", "enabled"}
-        frequency_changed = False
+        schedule_changed = False
         for key, value in kwargs.items():
             if key in allowed_fields:
-                if key == "frequency" and value != schedule.frequency:
-                    frequency_changed = True
+                if key in {"frequency", "cron_expression"} and value != getattr(
+                    schedule, key
+                ):
+                    schedule_changed = True
                 setattr(schedule, key, value)
 
-        if frequency_changed:
-            schedule.next_run_at = self._calculate_next_run(schedule.frequency)
+        if schedule_changed:
+            schedule.next_run_at = self._calculate_next_run(
+                schedule.frequency, schedule.cron_expression
+            )
 
         schedule.updated_at = datetime.now(timezone.utc)
         self.db.commit()
@@ -204,7 +213,12 @@ class SchedulerService:
 
         return schedule
 
-    async def claim_schedule(self, schedule_id: int, frequency: str) -> bool:
+    async def claim_schedule(
+        self,
+        schedule_id: int,
+        frequency: str,
+        cron_expression: Optional[str] = None,
+    ) -> bool:
         """
         Atomically claim a due schedule for execution.
 
@@ -229,7 +243,7 @@ class SchedulerService:
                 ScanSchedule.next_run_at <= now,
             )
             .update(
-                {"next_run_at": self._calculate_next_run(frequency)},
+                {"next_run_at": self._calculate_next_run(frequency, cron_expression)},
                 synchronize_session=False,
             )
         )

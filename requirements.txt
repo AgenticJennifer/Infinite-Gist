@@ -7,14 +7,7 @@ psycopg[binary]>=3.1.0
 python-jose[cryptography]>=3.3.0
 python-multipart>=0.0.5
 httpx>=0.24.0
-requests>=2.25.0
-python-dotenv>=0.19.0
 cryptography>=3.4.0
 pydantic[email]>=1.8.0
-aiofiles>=0.7.0
 bcrypt>=5.0.0,<6.0.0
-
-# Dev / Linting
-ruff>=0.5.0
-pytest>=7.4.0
-pytest-asyncio>=0.23.0
+croniter>=6.0.0,<7.0.0

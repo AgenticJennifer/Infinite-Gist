@@ -5,6 +5,7 @@ Handles the lifecycle of remediation actions: make_private, delete, and rotate.
 Each action is tracked with audit events and status updates.
 """
 
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -28,9 +29,17 @@ class RemediationService:
         self.db = db
         self.audit_service = AuditService(db)
 
-    async def make_private(self, finding_id: int, user_id: int) -> RemediationAction:
+    def _github_account_for_gist(self, gist, user_id: int):
+        criteria = [GitHubAccount.user_id == user_id]
+        if isinstance(gist.github_account_id, int):
+            criteria.append(GitHubAccount.id == gist.github_account_id)
+        return self.db.query(GitHubAccount).filter(*criteria).first()
+
+    async def replace_with_secret(
+        self, finding_id: int, user_id: int
+    ) -> RemediationAction:
         """
-        Make a Gist private.
+        Replace a public Gist with a new secret Gist and delete the original.
 
         Args:
             finding_id: The ID of the finding to remediate
@@ -52,7 +61,7 @@ class RemediationService:
         action = RemediationAction(
             finding_id=finding_id,
             user_id=user_id,
-            action_type="make_private",
+            action_type="replace_with_secret",
             status="pending",
             requested_at=datetime.now(timezone.utc),
         )
@@ -64,7 +73,9 @@ class RemediationService:
         await self.audit_service.log_event(
             user_id=user_id,
             event_type="remediation_requested",
-            event_description=f"User requested make_private for gist {gist.github_id}",
+            event_description=(
+                f"User requested secret replacement for gist {gist.github_id}"
+            ),
             details={"action_id": action.id, "gist_id": gist.github_id},
         )
 
@@ -74,26 +85,24 @@ class RemediationService:
             self.db.commit()
 
             # 5. Get GitHub service
-            github_account = (
-                self.db.query(GitHubAccount)
-                .filter(GitHubAccount.user_id == user_id)
-                .first()
-            )
+            github_account = self._github_account_for_gist(gist, user_id)
             if not github_account:
                 raise ValueError("No GitHub account linked")
 
             github_service = get_github_service_for_account(github_account)
 
-            # 6. Call GitHub API to make gist private
-            response = await github_service.make_gist_private(gist.github_id)
+            response = await github_service.replace_public_gist_with_secret(
+                gist.github_id
+            )
 
             # 7. Update action with response
             action.status = "completed"
             action.executed_at = datetime.now(timezone.utc)
             action.completed_at = datetime.now(timezone.utc)
-            action.github_response = str(response)
+            action.github_response = json.dumps(response, sort_keys=True)
 
             # 8. Update gist in database
+            gist.deleted = True
             gist.public = False
             gist.updated_at = datetime.now(timezone.utc)
 
@@ -103,7 +112,9 @@ class RemediationService:
             await self.audit_service.log_event(
                 user_id=user_id,
                 event_type="remediation_completed",
-                event_description=f"Successfully made gist {gist.github_id} private",
+                event_description=(
+                    f"Replaced public gist {gist.github_id} with a secret Gist"
+                ),
                 details={"action_id": action.id, "gist_id": gist.github_id},
             )
 
@@ -119,7 +130,9 @@ class RemediationService:
             await self.audit_service.log_event(
                 user_id=user_id,
                 event_type="remediation_failed",
-                event_description=f"Failed to make gist {gist.github_id} private: {str(e)}",
+                event_description=(
+                    f"Failed to replace gist {gist.github_id} with a secret Gist: {str(e)}"
+                ),
                 details={
                     "action_id": action.id,
                     "gist_id": gist.github_id,
@@ -176,11 +189,7 @@ class RemediationService:
             self.db.commit()
 
             # 5. Get GitHub service
-            github_account = (
-                self.db.query(GitHubAccount)
-                .filter(GitHubAccount.user_id == user_id)
-                .first()
-            )
+            github_account = self._github_account_for_gist(gist, user_id)
             if not github_account:
                 raise ValueError("No GitHub account linked")
 
@@ -194,7 +203,7 @@ class RemediationService:
             action.status = "completed"
             action.executed_at = datetime.now(timezone.utc)
             action.completed_at = datetime.now(timezone.utc)
-            action.github_response = str(response)
+            action.github_response = json.dumps(response, sort_keys=True)
 
             # 8. Mark gist as deleted in database (don't actually delete the record)
             gist.deleted = True
@@ -257,7 +266,7 @@ class RemediationService:
 
     async def rotate_secret(self, finding_id: int, user_id: int) -> RemediationAction:
         """
-        Initiate secret rotation (stub for future implementation).
+        Create a provider-agnostic manual rotation checklist.
 
         Args:
             finding_id: The ID of the finding to remediate
@@ -280,10 +289,18 @@ class RemediationService:
             finding_id=finding_id,
             user_id=user_id,
             action_type="rotate",
-            status="failed",  # Not implemented yet
+            status="manual_action_required",
             requested_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
-            error_message="Secret rotation not yet implemented. Please rotate manually.",
+            verification_details=json.dumps(
+                {
+                    "instructions": [
+                        "Revoke or rotate the credential at its issuing provider.",
+                        "Remove the exposed value from the Gist and its history.",
+                        "Run a new scan to verify the exposure is gone.",
+                    ]
+                }
+            ),
         )
         self.db.add(action)
         self.db.commit()
@@ -293,7 +310,9 @@ class RemediationService:
         await self.audit_service.log_event(
             user_id=user_id,
             event_type="remediation_requested",
-            event_description=f"User requested secret rotation for finding {finding_id} (not implemented)",
+            event_description=(
+                f"Created manual rotation checklist for finding {finding_id}"
+            ),
             details={"action_id": action.id, "finding_id": finding_id},
         )
 

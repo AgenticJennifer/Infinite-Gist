@@ -16,6 +16,7 @@ from src.backend.db.models import (
     GistFile,
     Finding,
     FindingStatus,
+    ScanResult,
 )
 from src.backend.db.session import SessionLocal
 from src.backend.core.config import settings
@@ -28,6 +29,7 @@ from src.backend.services.trufflehog_scanner import TruffleHogScanner
 from src.backend.services.severity_scorer import SeverityScorer
 from src.backend.services.evidence_masker import EvidenceMasker
 from src.backend.services.triage_service import TriageService, TriageVerdict
+from src.backend.services.revision_scanner import RevisionScanner
 
 logger = logging.getLogger(__name__)
 
@@ -68,11 +70,25 @@ class GistScannerService:
 
         all_findings: List[Finding] = []
 
-        for gist_data in gists:
+        for gist_summary in gists:
+            gist_data = await github_service.get_gist(gist_summary["id"])
             findings = await self._scan_gist(
                 gist_data, github_account, user, github_service
             )
             all_findings.extend(findings)
+
+            db_gist = self._upsert_gist(gist_data, user.id, github_account.id)
+            revision_scanner = RevisionScanner(
+                github_service=github_service,
+                regex_scanner=self.regex_scanner,
+                trufflehog=self.trufflehog,
+                scorer=self.scorer,
+                masker=self.masker,
+            )
+            revision_findings = await revision_scanner.scan_revision_history(
+                gist_data["id"], db_gist.id, self.db
+            )
+            all_findings.extend(revision_findings)
 
         return all_findings
 
@@ -86,15 +102,24 @@ class GistScannerService:
         """Scan a single gist for secrets, persisting Findings to DB."""
         gist_id = gist_data["id"]
 
-        gist = self._upsert_gist(gist_data, user.id)
+        gist = self._upsert_gist(gist_data, user.id, github_account.id)
+        scan_result = ScanResult(
+            gist_id=gist.id,
+            scan_type="current",
+            status="running",
+            started_at=datetime.now(timezone.utc),
+        )
+        self.db.add(scan_result)
+        self.db.commit()
+        self.db.refresh(scan_result)
         findings: List[Finding] = []
 
         try:
-            files = gist_data.get("files", {})
+            files = await github_service.get_complete_files(gist_data)
             files_scanned = 0
 
             for filename, file_data in files.items():
-                content = file_data.get("content")
+                content = file_data.get("content", "")
                 if not content:
                     continue
 
@@ -106,12 +131,22 @@ class GistScannerService:
                 findings.extend(file_findings)
 
             gist.last_synced_at = datetime.now(timezone.utc)
+            scan_result.status = "completed"
+            scan_result.completed_at = datetime.now(timezone.utc)
+            scan_result.files_scanned = files_scanned
+            scan_result.secrets_found = len(findings)
             self.db.add(gist)
+            self.db.add(scan_result)
             self.db.commit()
 
         except Exception as e:
             logger.error("Scan failed for gist %s: %s", gist_id, e)
             self.db.rollback()
+            scan_result.status = "failed"
+            scan_result.completed_at = datetime.now(timezone.utc)
+            scan_result.error_message = str(e)
+            self.db.add(scan_result)
+            self.db.commit()
             raise
 
         return findings
@@ -157,6 +192,9 @@ class GistScannerService:
                 .filter(
                     Finding.value_hash == value_hash,
                     Finding.gist_id == gist.id,
+                    Finding.gist_revision_id.is_(None),
+                    Finding.file_path == match.file_path,
+                    Finding.line_start == match.line_number,
                 )
                 .first()
             )
@@ -176,9 +214,7 @@ class GistScannerService:
                 content_snippet=masked_context[:500],
                 finding_type=match.type.value,
                 secret_type=match.type.value,
-                severity=severity.value
-                if hasattr(severity, "value")
-                else str(severity),
+                severity=severity,
                 confidence=int(confidence * 100),
                 masked_value=masked_value,
                 value_hash=value_hash,
@@ -195,7 +231,9 @@ class GistScannerService:
 
         return persisted
 
-    def _upsert_gist(self, gist_data: dict, user_id: int) -> Gist:
+    def _upsert_gist(
+        self, gist_data: dict, user_id: int, github_account_id: int
+    ) -> Gist:
         """Get or create a Gist DB record from GitHub API data."""
         github_id = gist_data["id"]
 
@@ -212,24 +250,40 @@ class GistScannerService:
             gist = Gist(
                 github_id=github_id,
                 user_id=user_id,
+                github_account_id=github_account_id,
                 description=gist_data.get("description"),
                 public=gist_data.get("public", False),
-                created_at=gist_data.get("created_at"),
-                updated_at=gist_data.get("updated_at"),
-                pushed_at=gist_data.get("pushed_at"),
+                created_at=self._parse_github_datetime(gist_data.get("created_at")),
+                updated_at=self._parse_github_datetime(gist_data.get("updated_at")),
+                pushed_at=self._parse_github_datetime(gist_data.get("pushed_at")),
             )
             self.db.add(gist)
             self.db.commit()
             self.db.refresh(gist)
         else:
+            gist.github_account_id = github_account_id
             gist.description = gist_data.get("description")
             gist.public = gist_data.get("public", gist.public)
-            gist.updated_at = gist_data.get("updated_at", gist.updated_at)
+            gist.updated_at = (
+                self._parse_github_datetime(gist_data.get("updated_at"))
+                or gist.updated_at
+            )
             self.db.add(gist)
             self.db.commit()
             self.db.refresh(gist)
 
         return gist
+
+    @staticmethod
+    def _parse_github_datetime(value) -> Optional[datetime]:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str) and value:
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+        return None
 
     def _upsert_gist_file(
         self, gist_id: int, filename: str, file_data: dict
@@ -257,7 +311,6 @@ class GistScannerService:
         else:
             gist_file.language = file_data.get("language")
             gist_file.size = file_data.get("size", gist_file.size)
-            gist_file.content = file_data.get("content", gist_file.content)
             self.db.add(gist_file)
             self.db.commit()
             self.db.refresh(gist_file)

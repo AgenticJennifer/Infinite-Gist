@@ -4,7 +4,7 @@ Endpoints for managing GitHub gists and scanning for secrets.
 
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -33,7 +33,7 @@ from src.backend.schemas.gists import (
 )
 from src.backend.services.evidence_masker import EvidenceMasker
 from src.backend.services.finding_correlator import FindingCorrelator
-from src.backend.services.gist_scanner import scan_github_account
+from src.backend.services.scan_executor import ScanExecutor
 from src.backend.services.secret_scanner import SecretMatch, SecretType
 from src.backend.services.temporal_analyzer import TemporalAnalyzer
 from src.backend.services.triage_service import TriageService
@@ -63,12 +63,16 @@ TRIAGE_THRESHOLDS = {
     "manual_review": 0.35,
     "escalation": 0.90,
 }
+PENDING_FINDING_STATUSES = {
+    FindingStatus.NEW,
+    FindingStatus.REVIEWING,
+    FindingStatus.ESCALATED,
+}
 
 
 @router.post("/scan/account/{github_account_id}", response_model=ScanResponse)
 async def scan_github_account_endpoint(
     github_account_id: int,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
@@ -85,12 +89,14 @@ async def scan_github_account_endpoint(
             detail="GitHub account not found or access denied",
         )
 
-    background_tasks.add_task(scan_github_account, github_account_id)
+    executor = ScanExecutor(db)
+    scan_run = await executor.run_scan_for_account(github_account_id, current_user.id)
 
     return ScanResponse(
-        message="Scan initiated successfully",
+        scan_id=scan_run.id,
+        message="Scan completed successfully",
         github_account_id=github_account_id,
-        status="started",
+        status=scan_run.status or "completed",
     )
 
 
@@ -312,7 +318,7 @@ async def get_finding_stats(
         )
 
     by_severity = {
-        str(sev): cnt
+        _enum_to_str(sev): cnt
         for sev, cnt in base_q.with_entities(Finding.severity, func.count(Finding.id))
         .group_by(Finding.severity)
         .all()
@@ -325,7 +331,7 @@ async def get_finding_stats(
         if t
     }
     by_status = {
-        str(s): cnt
+        _enum_to_str(s): cnt
         for s, cnt in base_q.with_entities(Finding.status, func.count(Finding.id))
         .group_by(Finding.status)
         .all()
@@ -600,16 +606,23 @@ def get_triage_status(
 
     # Calculate status from findings
     pending_findings = (
-        db.query(Finding).filter(Finding.gist_id.in_(user_gist_ids)).count()
+        db.query(Finding)
+        .filter(
+            Finding.gist_id.in_(user_gist_ids),
+            Finding.status.in_(PENDING_FINDING_STATUSES),
+        )
+        .count()
     )
 
     pending_by_confidence = []
     borderline_count = (
         db.query(Finding)
         .filter(Finding.gist_id.in_(user_gist_ids))
+        .filter(Finding.status.in_(PENDING_FINDING_STATUSES))
         .filter(
             Finding.confidence.between(
-                TRIAGE_THRESHOLDS["manual_review"], TRIAGE_THRESHOLDS["auto_triage"]
+                int(TRIAGE_THRESHOLDS["manual_review"] * 100),
+                int(TRIAGE_THRESHOLDS["auto_triage"] * 100) - 1,
             )
         )
         .count()
@@ -617,20 +630,22 @@ def get_triage_status(
     high_confidence = (
         db.query(Finding)
         .filter(Finding.gist_id.in_(user_gist_ids))
-        .filter(Finding.confidence >= 0.75)
+        .filter(Finding.status.in_(PENDING_FINDING_STATUSES))
+        .filter(Finding.confidence >= int(TRIAGE_THRESHOLDS["auto_triage"] * 100))
         .count()
     )
     low_confidence = (
         db.query(Finding)
         .filter(Finding.gist_id.in_(user_gist_ids))
-        .filter(Finding.confidence < 0.35)
+        .filter(Finding.status.in_(PENDING_FINDING_STATUSES))
+        .filter(Finding.confidence < int(TRIAGE_THRESHOLDS["manual_review"] * 100))
         .count()
     )
 
     pending_by_confidence = [
-        {"range": "low (under 0.35)", "count": low_confidence},
-        {"range": "borderline (0.35-0.75)", "count": borderline_count},
-        {"range": "high (over 0.75)", "count": high_confidence},
+        {"range": "low (under 35%)", "count": low_confidence},
+        {"range": "borderline (35%-75%)", "count": borderline_count},
+        {"range": "high (75% and over)", "count": high_confidence},
     ]
 
     return {
@@ -734,7 +749,6 @@ async def mask_finding_evidence(
 @router.post("/trufflehog/scan", response_model=dict)
 async def start_trufflehog_scan_endpoint(
     github_account_id: int,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
@@ -752,13 +766,21 @@ async def start_trufflehog_scan_endpoint(
             detail="GitHub account not found or access denied",
         )
 
-    # Start the scan in the background
-    background_tasks.add_task(TruffleHogScanner.scan_account, github_account_id)
+    scanner_status = await TruffleHogScanner().get_status()
+    if not scanner_status.available:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="TruffleHog is not installed or executable",
+        )
+
+    executor = ScanExecutor(db)
+    scan_run = await executor.run_scan_for_account(github_account_id, current_user.id)
 
     return {
-        "status": "started",
+        "scan_id": scan_run.id,
+        "status": scan_run.status,
         "github_account_id": github_account_id,
-        "message": "TruffleHog scan initiated successfully",
+        "message": "TruffleHog-enabled scan completed successfully",
     }
 
 
@@ -766,7 +788,7 @@ async def start_trufflehog_scan_endpoint(
 async def get_trufflehog_status_endpoint(
     current_user: User = Depends(get_current_active_user),
 ):
-    status_info = TruffleHogScanner.get_status()
+    status_info = await TruffleHogScanner().get_status()
 
     return {
         "available": status_info.available,

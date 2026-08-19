@@ -1,11 +1,14 @@
+FROM ghcr.io/trufflesecurity/trufflehog:3.90.8 AS trufflehog
+
 FROM python:3.11-slim AS builder
 WORKDIR /app
 COPY requirements.lock .
-RUN pip install --user --no-cache-dir -r requirements.lock
+RUN pip install --user --no-cache-dir --retries 5 --timeout 120 -r requirements.lock
 
 FROM python:3.11-slim
-RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git && \
     rm -rf /var/lib/apt/lists/*
+COPY --from=trufflehog /usr/bin/trufflehog /usr/local/bin/trufflehog
 RUN useradd --create-home --shell /bin/bash appuser && \
     mkdir -p /app/data && chown -R appuser:appuser /app
 WORKDIR /app

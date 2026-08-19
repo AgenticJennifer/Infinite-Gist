@@ -30,18 +30,13 @@ class SecretType(str, Enum):
 
 
 class GistBase(BaseModel):
-    github_gist_id: str
-    html_url: str
-    git_pull_url: str
-    git_push_url: str
-    commits_url: str
-    forks_url: str
-    public: bool
-    created_at: datetime
-    updated_at: datetime
+    github_id: str
+    public: bool = False
+    deleted: bool = False
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    pushed_at: Optional[datetime] = None
     description: Optional[str] = None
-    comments: int = 0
-    commits: int = 0
 
 
 class GistCreate(GistBase):
@@ -49,23 +44,18 @@ class GistCreate(GistBase):
 
 
 class GistUpdate(BaseModel):
-    html_url: Optional[str] = None
-    git_pull_url: Optional[str] = None
-    git_push_url: Optional[str] = None
-    commits_url: Optional[str] = None
-    forks_url: Optional[str] = None
     public: Optional[bool] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     description: Optional[str] = None
-    comments: Optional[int] = None
-    commits: Optional[int] = None
+    pushed_at: Optional[datetime] = None
 
 
 class GistInDBBase(GistBase):
     id: int
     user_id: int
-    last_scanned_at: Optional[datetime] = None
+    github_account_id: Optional[int] = None
+    last_synced_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -76,9 +66,7 @@ class Gist(GistInDBBase):
 
 class GistFileBase(BaseModel):
     filename: str
-    type: Optional[str] = None
     language: Optional[str] = None
-    raw_url: Optional[str] = None
     size: int = 0
 
 
@@ -88,16 +76,13 @@ class GistFileCreate(GistFileBase):
 
 class GistFileUpdate(BaseModel):
     filename: Optional[str] = None
-    type: Optional[str] = None
     language: Optional[str] = None
-    raw_url: Optional[str] = None
     size: Optional[int] = None
 
 
 class GistFileInDBBase(GistFileBase):
     id: int
     gist_id: int
-    content: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -208,6 +193,7 @@ class ScanStatsResponse(BaseModel):
 
 
 class ScanResponse(BaseModel):
+    scan_id: int
     message: str
     github_account_id: int
     status: str

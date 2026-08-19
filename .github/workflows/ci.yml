@@ -29,7 +29,8 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -r requirements.lock
+          cache-dependency-path: requirements-dev.lock
+      - run: pip install -r requirements-dev.lock
       - run: pytest tests/ -v --tb=short
 
   migrations-postgres:
@@ -50,16 +51,34 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql+psycopg://infinite_gist:infinite_gist@localhost:5432/infinite_gist
-      SECRET_KEY: ci-secret-key
-      ENCRYPTION_KEY: ci-encryption-key
+      SECRET_KEY: ci-secret-key-that-is-at-least-thirty-two-characters
+      ENCRYPTION_KEY: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -r requirements.lock
+          cache-dependency-path: requirements-dev.lock
+      - run: pip install -r requirements-dev.lock
       - run: alembic upgrade head
+      - run: alembic check
+      - run: pytest tests/test_postgres_smoke.py -v --tb=short
+
+  mvp-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mvp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: mvp/requirements.lock
+      - run: pip install -r requirements.lock
+      - run: pytest -q
 
   frontend-test:
     runs-on: ubuntu-latest
@@ -78,7 +97,8 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -r requirements.lock
+          cache-dependency-path: requirements-dev.lock
+      - run: pip install -r requirements-dev.lock
       - uses: jakebailey/pyright-action@v2
         with:
           version: "1.1.411"

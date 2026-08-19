@@ -5,7 +5,17 @@ from __future__ import annotations
 import enum
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -92,6 +102,9 @@ class Gist(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=False, index=True
     )
+    github_account_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("github_accounts.id"), index=True
+    )
     description: Mapped[str | None] = mapped_column(Text)
     public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
     deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -103,6 +116,7 @@ class Gist(Base):
     )
 
     user: Mapped[User] = relationship(backref="gists")
+    github_account: Mapped[GitHubAccount | None] = relationship(backref="gists")
 
 
 class GistFile(Base):
@@ -113,7 +127,6 @@ class GistFile(Base):
         Integer, ForeignKey("gists.id"), nullable=False
     )
     filename: Mapped[str] = mapped_column(String, nullable=False)
-    content: Mapped[str | None] = mapped_column(Text)
     language: Mapped[str | None] = mapped_column(String)
     size: Mapped[int | None] = mapped_column(Integer)
 
@@ -158,7 +171,7 @@ class Finding(Base):
     confidence: Mapped[int | None] = mapped_column(Integer)
 
     masked_value: Mapped[str | None] = mapped_column(String)
-    value_hash: Mapped[str | None] = mapped_column(String, unique=True, index=True)
+    value_hash: Mapped[str | None] = mapped_column(String, index=True)
 
     detected_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=True)
     status: Mapped[FindingStatus] = mapped_column(
@@ -305,6 +318,7 @@ class AccountPolicy(Base):
 
 class SecurityTrend(Base):
     __tablename__ = "security_trends"
+    __table_args__ = (UniqueConstraint("user_id", "date", name="uq_trend_user_date"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(

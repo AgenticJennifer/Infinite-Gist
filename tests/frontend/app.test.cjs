@@ -23,6 +23,7 @@ function loadApp(overrides = {}) {
     URL,
     URLSearchParams,
     console,
+    document: { cookie: '' },
     fetch: async () => { throw new Error('Unexpected fetch'); },
     history: { replaceState() {} },
     localStorage: storage(),
@@ -33,7 +34,7 @@ function loadApp(overrides = {}) {
     ...overrides,
   });
 
-  vm.runInContext(`${appSource}\n;globalThis.testApi = { api, apiUrl, escapeHtml, guardClick, severityBadge, state, router };`, context);
+  vm.runInContext(`${appSource}\n;globalThis.testApi = { api, apiUrl, confidenceBar, cookieValue, escapeHtml, guardClick, severityBadge, state, router };`, context);
   return { ...context.testApi, listeners };
 }
 
@@ -72,19 +73,33 @@ test('guardClick prevents duplicate submissions and restores the button', async 
   assert.equal(button.disabled, false);
 });
 
-test('api sends JSON and bearer headers and returns parsed data', async () => {
+test('api sends same-origin credentials and returns parsed data', async () => {
   let request;
   const fetch = async (url, options) => {
     request = { url, options };
     return { ok: true, status: 200, json: async () => ({ id: 7 }) };
   };
-  const { api } = loadApp({ fetch, localStorage: storage({ token: 'secret-token' }) });
+  const { api } = loadApp({ fetch });
 
   assert.deepEqual(await api('/findings/7', { headers: { 'X-Test': 'yes' } }), { id: 7 });
   assert.equal(request.url, '/api/v1/findings/7');
-  assert.equal(request.options.headers.Authorization, 'Bearer secret-token');
+  assert.equal(request.options.credentials, 'same-origin');
+  assert.equal(request.options.headers.Authorization, undefined);
   assert.equal(request.options.headers['Content-Type'], 'application/json');
   assert.equal(request.options.headers['X-Test'], 'yes');
+});
+
+test('api sends the double-submit CSRF token on mutations', async () => {
+  let request;
+  const fetch = async (_url, options) => {
+    request = options;
+    return { ok: true, status: 200, json: async () => ({ detail: 'ok' }) };
+  };
+  const { api } = loadApp({ fetch, document: { cookie: 'csrf_token=csrf-value' } });
+
+  await api('/auth/logout', { method: 'POST' });
+
+  assert.equal(request.headers['X-CSRF-Token'], 'csrf-value');
 });
 
 test('api surfaces server error details', async () => {
@@ -99,8 +114,19 @@ test('api surfaces server error details', async () => {
   await assert.rejects(api('/findings'), /Invalid filter/);
 });
 
+test('api surfaces errors from the application exception envelope', async () => {
+  const fetch = async () => ({
+    ok: false,
+    status: 500,
+    statusText: 'Server Error',
+    json: async () => ({ error: 'Database unavailable' }),
+  });
+  const { api } = loadApp({ fetch });
+
+  await assert.rejects(api('/findings'), /Database unavailable/);
+});
+
 test('api clears authentication and redirects after an unauthorized response', async () => {
-  const localStorage = storage({ token: 'expired-token' });
   const location = { origin: 'https://example.test', hash: '' };
   const fetch = async () => ({
     ok: false,
@@ -108,11 +134,10 @@ test('api clears authentication and redirects after an unauthorized response', a
     statusText: 'Unauthorized',
     json: async () => ({ detail: 'Session expired' }),
   });
-  const { api, state } = loadApp({ fetch, localStorage, location });
+  const { api, state } = loadApp({ fetch, location });
 
   await assert.rejects(api('/findings'), /Session expired/);
-  assert.equal(state.token, null);
-  assert.equal(localStorage.getItem('token'), null);
+  assert.equal(state.authenticated, false);
   assert.equal(location.hash, '/login');
 });
 
@@ -127,43 +152,43 @@ test('api rejects malformed JSON from an otherwise successful response', async (
   await assert.rejects(api('/findings'), /Invalid JSON/);
 });
 
-test('OAuth callback accepts a token only after this client initiated login', () => {
-  const localStorage = storage();
-  const sessionStorage = storage({ oauth_pending: '1' });
-  const location = { origin: 'https://example.test', hash: '#access_token=oauth-token' };
-  let replacedWith = null;
-  const history = { replaceState: (_state, _title, url) => { replacedWith = url; } };
-  const app = loadApp({ localStorage, sessionStorage, location, history });
+test('load restores an authenticated session from the HttpOnly cookie', async () => {
+  const location = { origin: 'https://example.test', hash: '#/dashboard' };
+  const fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ id: 7, username: 'octocat' }),
+  });
+  const app = loadApp({ fetch, location });
   let routed = 0;
   app.router.handle = () => { routed += 1; };
 
-  app.listeners.load();
+  await app.listeners.load();
 
-  assert.equal(app.state.token, 'oauth-token');
-  assert.equal(localStorage.getItem('token'), 'oauth-token');
-  assert.equal(sessionStorage.getItem('oauth_pending'), null);
-  assert.equal(replacedWith, '/');
+  assert.equal(app.state.authenticated, true);
+  assert.equal(app.state.currentUser.username, 'octocat');
   assert.equal(routed, 1);
 });
 
-test('OAuth callback ignores unsolicited tokens in shared URLs', () => {
-  const localStorage = storage();
-  const sessionStorage = storage();
-  const location = { origin: 'https://example.test', hash: '#token=crafted-token' };
-  let historyCalls = 0;
-  const app = loadApp({
-    localStorage,
-    sessionStorage,
-    location,
-    history: { replaceState: () => { historyCalls += 1; } },
+test('load redirects an unauthenticated browser to login', async () => {
+  const location = { origin: 'https://example.test', hash: '#/dashboard' };
+  const fetch = async () => ({
+    ok: false,
+    status: 401,
+    statusText: 'Unauthorized',
+    json: async () => ({ detail: 'Not authenticated' }),
   });
+  const app = loadApp({ fetch, location });
   app.router.handle = () => {};
 
-  app.listeners.load();
+  await app.listeners.load();
 
-  assert.equal(app.state.token, null);
-  assert.equal(localStorage.getItem('token'), null);
-  assert.equal(historyCalls, 0);
+  assert.equal(app.state.authenticated, false);
+  assert.equal(location.hash, '/login');
+});
+
+test('frontend source never persists or parses bearer tokens', () => {
+  assert.doesNotMatch(appSource, /localStorage|access_token|oauth_pending/);
 });
 
 test('severityBadge escapes labels and restricts CSS severity classes', () => {
@@ -173,4 +198,12 @@ test('severityBadge escapes labels and restricts CSS severity classes', () => {
   assert.match(html, /badge-low/);
   assert.doesNotMatch(html, /<script>/);
   assert.match(html, /&lt;script&gt;/);
+});
+
+test('confidenceBar treats API confidence as an integer percentage', () => {
+  const { confidenceBar } = loadApp();
+
+  assert.match(confidenceBar(95), /width:95%/);
+  assert.match(confidenceBar(95), />95%</);
+  assert.match(confidenceBar(150), /width:100%/);
 });

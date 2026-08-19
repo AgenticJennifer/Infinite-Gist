@@ -17,7 +17,7 @@ from typing import Optional
 import bcrypt
 from cryptography.fernet import Fernet
 from jose import JWTError, jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -26,7 +26,9 @@ from src.backend.db.session import get_db
 from src.backend.db.models import User
 
 # OAuth2 scheme
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/token")
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl=f"{settings.API_V1_STR}/auth/token", auto_error=False
+)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -141,13 +143,18 @@ def decrypt_token(encrypted_token: str) -> str:
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+    request: Request,
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
 ):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    token = token or request.cookies.get("session_token")
+    if not token:
+        raise credentials_exception
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]

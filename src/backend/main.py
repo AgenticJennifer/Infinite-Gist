@@ -2,7 +2,9 @@
 Main FastAPI application entry point for Infinite Gist.
 """
 
+import asyncio
 import logging
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,16 +25,39 @@ from src.backend.middleware.security import (
     RequestSizeLimitMiddleware,
     CSRFProtectionMiddleware,
 )
+from src.backend.tasks.periodic_scans import run_periodic_scans
 
 # Configure structured logging (JSON in production, plain in dev)
 setup_logging()
 logger = logging.getLogger(__name__)
+
+
+async def _scheduler_loop() -> None:
+    while True:
+        await run_periodic_scans()
+        await asyncio.sleep(settings.SCHEDULER_INTERVAL_SECONDS)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    scheduler_task = None
+    if settings.SCHEDULER_ENABLED:
+        scheduler_task = asyncio.create_task(_scheduler_loop())
+    try:
+        yield
+    finally:
+        if scheduler_task:
+            scheduler_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await scheduler_task
+
 
 app = FastAPI(
     title="Infinite Gist API",
     description="Security monitoring and remediation platform for GitHub Gists",
     version="0.2.0",
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    lifespan=lifespan,
 )
 
 # Set up CORS middleware

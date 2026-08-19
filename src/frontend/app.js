@@ -7,7 +7,7 @@ const API = '/api/v1';
 
 /* ===== State ===== */
 const state = {
-  token: localStorage.getItem('token') || null,
+  authenticated: null,
   currentUser: null,
   currentRoute: '',
   filters: {},
@@ -16,14 +16,25 @@ const state = {
 /* ===== API Client ===== */
 async function api(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...options.headers };
-  if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
-  const res = await fetch(`${API}${path}`, { ...options, headers });
-  if (res.status === 401) { state.token = null; localStorage.removeItem('token'); router.navigate('/login'); }
+  const method = String(options.method || 'GET').toUpperCase();
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const csrf = cookieValue('csrf_token');
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
+  const res = await fetch(`${API}${path}`, { credentials: 'same-origin', ...options, headers });
+  if (res.status === 401) { state.authenticated = false; state.currentUser = null; router.navigate('/login'); }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    throw new Error(err.detail || err.error || `HTTP ${res.status}`);
   }
   return res.json();
+}
+
+function cookieValue(name) {
+  if (typeof document === 'undefined' || !document.cookie) return '';
+  const prefix = `${encodeURIComponent(name)}=`;
+  const item = document.cookie.split('; ').find(value => value.startsWith(prefix));
+  return item ? decodeURIComponent(item.slice(prefix.length)) : '';
 }
 
 function apiUrl(path, params) {
@@ -136,7 +147,7 @@ function severityBadge(sev) {
 }
 
 function confidenceBar(val) {
-  const pct = Math.round((val || 0) * 100);
+  const pct = Math.max(0, Math.min(100, Math.round(val || 0)));
   const color = pct >= 75 ? 'var(--color-critical)' : pct >= 50 ? 'var(--color-warning)' : 'var(--color-low)';
   return `<div class="confidence-bar"><div class="confidence-fill" style="width:${pct}%;background:${color}"></div></div> <span style="font-size:var(--fs-xs);color:var(--color-text-secondary)">${pct}%</span>`;
 }
@@ -194,9 +205,22 @@ function renderSidebar() {
       <div class="sub">Security Monitoring</div>
     </div>
     <nav class="sidebar-nav"></nav>
-    <div class="sidebar-footer">Signed in</div>`;
+    <div class="sidebar-footer"></div>`;
   const navContainer = sidebar.querySelector('.sidebar-nav');
   nav.forEach(n => navContainer.appendChild(n));
+  const footer = sidebar.querySelector('.sidebar-footer');
+  const identity = document.createElement('div');
+  identity.textContent = state.currentUser?.username || 'Signed in';
+  const logoutBtn = document.createElement('button');
+  logoutBtn.className = 'nav-item';
+  logoutBtn.innerHTML = '<i data-lucide="log-out"></i> Sign out';
+  logoutBtn.onclick = guardClick(logoutBtn, async () => {
+    await api('/auth/logout', { method: 'POST' });
+    state.authenticated = false;
+    state.currentUser = null;
+    router.navigate('/login');
+  });
+  footer.append(identity, logoutBtn);
   return sidebar;
 }
 
@@ -214,9 +238,6 @@ function renderLogin() {
         <i data-lucide="github" class="icon-sm"></i> Sign in with GitHub
       </a>
     </div>`;
-  page.querySelector('#github-login-link').addEventListener('click', () => {
-    sessionStorage.setItem('oauth_pending', '1');
-  });
   return page;
 }
 
@@ -227,11 +248,39 @@ async function renderDashboard() {
   const content = document.createElement('div');
 
   try {
-    const [stats, summary, trends] = await Promise.all([
+    const [stats, summary, trends, accounts] = await Promise.all([
       api('/gists/findings/stats').catch(() => null),
       api('/trends/summary').catch(() => null),
       api('/trends/?days=30').catch(() => null),
+      api('/auth/github/accounts').catch(() => []),
     ]);
+
+    const scanToolbar = document.createElement('div');
+    scanToolbar.className = 'toolbar';
+    if (accounts.length) {
+      const accountSelect = document.createElement('select');
+      accountSelect.className = 'form-select';
+      accounts.forEach(account => {
+        const option = document.createElement('option');
+        option.value = account.id;
+        option.textContent = `@${account.username}`;
+        accountSelect.appendChild(option);
+      });
+      const scanBtn = document.createElement('button');
+      scanBtn.className = 'btn btn-primary btn-sm';
+      scanBtn.innerHTML = '<i data-lucide="scan-search" class="icon-xs"></i> Scan now';
+      scanBtn.onclick = guardClick(scanBtn, async () => {
+        try {
+          const result = await api(`/gists/scan/account/${accountSelect.value}`, { method: 'POST' });
+          toast(`Scan #${result.scan_id} completed`, 'success');
+          router.navigate('/findings');
+        } catch (e) { toast(e.message, 'error'); }
+      });
+      scanToolbar.append(accountSelect, scanBtn);
+    } else {
+      scanToolbar.appendChild(errorMsg('No linked GitHub account. Sign out and reconnect with GitHub.'));
+    }
+    content.appendChild(scanToolbar);
 
     // Stats cards
     const statsGrid = document.createElement('div');
@@ -244,13 +293,13 @@ async function renderDashboard() {
         <div class="stat-card"><div class="stat-value">${stats.by_severity?.high || 0}</div><div class="stat-label" style="color:var(--color-high)">High</div></div>
         <div class="stat-card"><div class="stat-value">${stats.by_severity?.medium || 0}</div><div class="stat-label" style="color:var(--color-medium)">Medium</div></div>
         <div class="stat-card"><div class="stat-value">${stats.by_severity?.low || 0}</div><div class="stat-label" style="color:var(--color-low)">Low</div></div>
-        <div class="stat-card"><div class="stat-value">${stats.average_confidence ? Math.round(stats.average_confidence * 100) + '%' : '—'}</div><div class="stat-label">Avg Confidence</div></div>`;
+        <div class="stat-card"><div class="stat-value">${stats.average_confidence ? Math.round(stats.average_confidence) + '%' : '—'}</div><div class="stat-label">Avg Confidence</div></div>`;
     }
 
     // Posture summary
     let postureHtml = '';
     if (summary) {
-      const trend = summary.posture_trend || summary.trend || 'unknown';
+      const trend = summary.direction || 'stable';
       const trendIcon = trend === 'improving' ? 'trending-up' : trend === 'degrading' ? 'trending-down' : 'minus';
       const trendColor = trend === 'improving' ? 'var(--color-success)' : trend === 'degrading' ? 'var(--color-error)' : 'var(--color-text-secondary)';
       postureHtml = `
@@ -481,7 +530,7 @@ async function renderFindingDetail(id) {
     statusBtn.className = 'btn btn-secondary btn-sm';
     statusBtn.innerHTML = '<i data-lucide="toggle-left" class="icon-xs"></i> Toggle Status';
     statusBtn.onclick = guardClick(statusBtn, async () => {
-      const newStatus = finding.status === 'open' ? 'resolved' : 'open';
+      const newStatus = finding.status === 'fixed' ? 'reviewing' : 'fixed';
       try { await api(`/gists/findings/${id}/status?new_status=${newStatus}`, { method: 'PUT' }); toast('Status updated', 'success'); renderFindingDetail(id).then(r => content.replaceWith(r)); }
       catch (e) { toast(e.message, 'error'); }
     });
@@ -498,20 +547,20 @@ async function renderFindingDetail(id) {
     actionsCard.querySelector('div').appendChild(fpBtn);
 
     // Remediation buttons
-    const remediateBtn = (action, label) => {
+    const remediateBtn = (action, label, extraBody = {}) => {
       const btn = document.createElement('button');
       btn.className = 'btn btn-danger btn-sm';
       btn.innerHTML = `<i data-lucide="shield-off" class="icon-xs"></i> ${label}`;
       btn.onclick = guardClick(btn, async () => {
         if (!await confirmDialog(`${label}: are you sure?`)) return;
-        try { await api(`/remediation/${action}`, { method: 'POST', body: JSON.stringify({ finding_id: id }) }); toast(`${label} initiated`, 'success'); }
+        try { await api(`/remediation/${action}`, { method: 'POST', body: JSON.stringify({ finding_id: id, ...extraBody }) }); toast(`${label} completed`, 'success'); }
         catch (e) { toast(e.message, 'error'); }
       });
       return btn;
     };
-    actionsCard.querySelector('div').appendChild(remediateBtn('make-private', 'Make Private'));
+    actionsCard.querySelector('div').appendChild(remediateBtn('replace-with-secret', 'Replace with Secret Gist', { confirm_url_and_history_change: true }));
     actionsCard.querySelector('div').appendChild(remediateBtn('delete', 'Delete Gist'));
-    actionsCard.querySelector('div').appendChild(remediateBtn('rotate', 'Rotate Secret'));
+    actionsCard.querySelector('div').appendChild(remediateBtn('rotate', 'Get Rotation Steps'));
 
     content.appendChild(actionsCard);
 
@@ -616,6 +665,7 @@ async function renderSchedules() {
   tableContainer.className = 'table-container';
   page.appendChild(toolbar);
   page.appendChild(tableContainer);
+  const accounts = await api('/auth/github/accounts').catch(() => []);
 
   async function loadSchedules() {
     tableContainer.innerHTML = '';
@@ -632,7 +682,8 @@ async function renderSchedules() {
       const tbody = table.querySelector('tbody');
       data.forEach(s => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${s.id}</td><td>${escapeHtml(s.name) || escapeHtml(s.frequency) || '—'}</td><td>${escapeHtml(s.frequency) || '—'}</td><td>${escapeHtml(s.target) || escapeHtml(s.github_account_id) || '—'}</td>
+        const account = accounts.find(item => item.id === s.github_account_id);
+        tr.innerHTML = `<td>${s.id}</td><td>${escapeHtml(s.frequency) || '—'} scan</td><td>${escapeHtml(s.frequency) || '—'}</td><td>${account ? `@${escapeHtml(account.username)}` : escapeHtml(s.github_account_id) || '—'}</td>
           <td><span class="badge badge-${s.enabled ? 'success' : 'low'}">${s.enabled ? 'Active' : 'Disabled'}</span></td>
           <td><button class="btn btn-ghost btn-icon" data-edit="${s.id}" aria-label="Edit schedule ${escapeHtml(s.name) || s.id}"><i data-lucide="edit" class="icon-xs"></i></button>
           <button class="btn btn-ghost btn-icon" data-delete="${s.id}" aria-label="Delete schedule ${escapeHtml(s.name) || s.id}"><i data-lucide="trash-2" class="icon-xs"></i></button></td>`;
@@ -653,27 +704,36 @@ async function renderSchedules() {
   }
 
   createBtn.onclick = () => editSchedule(null);
+  if (!accounts.length) {
+    createBtn.disabled = true;
+    createBtn.title = 'Link a GitHub account before creating a schedule';
+  }
   loadSchedules();
   return page;
 
   function editSchedule(s) {
     const isNew = !s;
     const bodyHtml = `
-      <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="sched-name" value="${s ? escapeHtml(s.name || '') : ''}" placeholder="e.g. Weekly scan"></div>
       <div class="form-group"><label class="form-label">Interval</label>
         <select class="form-select" id="sched-interval">
           <option value="daily" ${s && s.frequency === 'daily' ? 'selected' : ''}>Daily</option>
           <option value="weekly" ${!s || s.frequency === 'weekly' ? 'selected' : ''}>Weekly</option>
           <option value="custom" ${s && s.frequency === 'custom' ? 'selected' : ''}>Custom (cron)</option>
         </select></div>
-      <div class="form-group"><label class="form-label">GitHub Account ID</label><input class="form-input" id="sched-target" value="${s ? escapeHtml(s.github_account_id || s.target || '') : ''}" placeholder="Account ID"></div>`;
+      <div class="form-group"><label class="form-label">GitHub account</label><select class="form-select" id="sched-target" ${s ? 'disabled' : ''}>${accounts.map(account => `<option value="${account.id}" ${s && s.github_account_id === account.id ? 'selected' : ''}>@${escapeHtml(account.username)}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">Cron expression</label><input class="form-input" id="sched-cron" value="${s ? escapeHtml(s.cron_expression || '') : ''}" placeholder="0 3 * * * (custom only)"></div>`;
     const m = showModal(isNew ? 'Create Schedule' : 'Edit Schedule', bodyHtml,
       `<button class="btn btn-secondary" data-cancel>Cancel</button>
        <button class="btn btn-primary" data-save>${isNew ? 'Create' : 'Save'}</button>`);
     m.querySelector('[data-cancel]').onclick = () => m.remove();
     const saveBtn = m.querySelector('[data-save]');
     saveBtn.onclick = guardClick(saveBtn, async () => {
-      const body = { frequency: m.querySelector('#sched-interval').value, github_account_id: parseInt(m.querySelector('#sched-target').value) || 1 };
+      const frequency = m.querySelector('#sched-interval').value;
+      const body = {
+        frequency,
+        cron_expression: frequency === 'custom' ? m.querySelector('#sched-cron').value.trim() : null,
+      };
+      if (isNew) body.github_account_id = Number(m.querySelector('#sched-target').value);
       try {
         if (isNew) { await api('/schedules/', { method: 'POST', body: JSON.stringify(body) }); toast('Schedule created', 'success'); }
         else { await api(`/schedules/${s.id}`, { method: 'PUT', body: JSON.stringify(body) }); toast('Schedule updated', 'success'); }
@@ -700,15 +760,16 @@ async function renderPolicies() {
 
     // Build form from policy fields
     const fields = [
-      { key: 'notify_critical', label: 'Notify on Critical Findings', type: 'checkbox' },
-      { key: 'notify_high', label: 'Notify on High Findings', type: 'checkbox' },
-      { key: 'auto_remediate_critical', label: 'Auto-remediate Critical', type: 'checkbox', desc: 'Opt-in only' },
+      { key: 'notify_on_scan', label: 'Notify When Scans Complete', type: 'checkbox' },
+      { key: 'notify_on_finding', label: 'Notify on New Findings', type: 'checkbox' },
+      { key: 'auto_remediate', label: 'Replace Exposed Public Gists with Secret Gists', type: 'checkbox', desc: 'Changes URL and removes history' },
+      { key: 'auto_remediate_types', label: 'Auto-remediation Secret Types', type: 'text', desc: 'Comma-separated; blank means all types' },
       { key: 'digest_frequency', label: 'Digest Frequency', type: 'select', options: ['daily', 'weekly', 'never'] },
-      { key: 'max_findings_per_gist', label: 'Max Findings per Gist', type: 'number' },
     ];
 
     fields.forEach(f => {
-      const val = data[f.key] !== undefined ? data[f.key] : (f.type === 'checkbox' ? false : '');
+      let val = data[f.key] !== undefined ? data[f.key] : (f.type === 'checkbox' ? false : '');
+      if (Array.isArray(val)) val = val.join(', ');
       const g = document.createElement('div');
       g.className = 'form-group';
       if (f.type === 'checkbox') {
@@ -720,7 +781,7 @@ async function renderPolicies() {
         g.innerHTML = `<label class="form-label">${f.label}</label>
           <select class="form-select" id="pol-${f.key}">${(f.options || []).map(o => `<option value="${o}" ${val === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
       } else {
-        g.innerHTML = `<label class="form-label">${f.label}</label><input class="form-input" type="${f.type}" id="pol-${f.key}" value="${val}">`;
+        g.innerHTML = `<label class="form-label">${f.label}</label><input class="form-input" type="${f.type}" id="pol-${f.key}" value="${escapeHtml(val)}">`;
       }
       form.appendChild(g);
     });
@@ -732,8 +793,10 @@ async function renderPolicies() {
       const body = {};
       fields.forEach(f => {
         const el = document.getElementById(`pol-${f.key}`);
-        body[f.key] = f.type === 'checkbox' ? el.checked : f.type === 'number' ? parseInt(el.value) || 0 : el.value;
+        body[f.key] = f.type === 'checkbox' ? el.checked : el.value;
       });
+      body.auto_remediate_types = body.auto_remediate_types
+        .split(',').map(value => value.trim()).filter(Boolean);
       try { await api('/policies/', { method: 'PUT', body: JSON.stringify(body) }); toast('Policies saved', 'success'); }
       catch (e) { toast(e.message, 'error'); }
     });
@@ -778,10 +841,10 @@ async function renderDigests() {
       table.innerHTML = `<thead><tr><th>ID</th><th>Type</th><th>Period</th><th>Created</th><th>Status</th></tr></thead><tbody>
         ${data.map(d => `<tr>
           <td>${d.id}</td>
-          <td>${d.digest_type || d.type || '—'}</td>
-          <td>${d.period || '—'}</td>
-          <td style="font-size:var(--fs-xs)">${formatDate(d.created_at || d.created)}</td>
-          <td><span class="badge badge-${d.status === 'generated' ? 'success' : 'warning'}">${d.status || '—'}</span></td>
+          <td>${escapeHtml(d.report_type) || '—'}</td>
+          <td>${formatDate(d.period_start)} – ${formatDate(d.period_end)}</td>
+          <td style="font-size:var(--fs-xs)">${formatDate(d.created_at)}</td>
+          <td><span class="badge badge-${d.sent_at ? 'success' : 'low'}">${d.sent_at ? 'Sent' : 'Generated'}</span></td>
         </tr>`).join('')}</tbody></table>`;
       tableContainer.appendChild(table);
     } catch (e) {
@@ -819,10 +882,10 @@ async function renderTrends() {
       const sGrid = document.createElement('div');
       sGrid.className = 'stats-grid';
       const items = [
-        { label: 'Total Findings (avg)', val: summary.avg_total_findings ?? '—' },
-        { label: 'Critical (avg)', val: summary.avg_critical ?? '—' },
-        { label: 'High (avg)', val: summary.avg_high ?? '—' },
-        { label: 'Remediated (avg)', val: summary.avg_remediated ?? '—' },
+        { label: 'Current Findings', val: summary.current_total ?? 0 },
+        { label: 'Critical', val: summary.critical ?? 0 },
+        { label: 'High', val: summary.high ?? 0 },
+        { label: 'Direction', val: summary.direction || 'stable' },
       ];
       items.forEach(i => {
         sGrid.innerHTML += `<div class="stat-card"><div class="stat-value">${i.val}</div><div class="stat-label">${i.label}</div></div>`;
@@ -891,7 +954,7 @@ const router = {
     const app = document.getElementById('app');
 
     // Check auth
-    if (!state.token && !hash.startsWith('/login')) {
+    if (state.authenticated !== true && !hash.startsWith('/login')) {
       this.navigate('/login');
       return;
     }
@@ -980,18 +1043,13 @@ const router = {
 
 /* ===== Init ===== */
 window.addEventListener('hashchange', () => router.handle());
-window.addEventListener('load', () => {
-  // Check for token in URL (from OAuth redirect) — only accept it if this
-  // client just initiated the GitHub OAuth flow, to avoid a stray/crafted
-  // token in a shared or bookmarked URL being picked up as a valid session.
-  const hashParams = new URLSearchParams(location.hash.replace('#', ''));
-  const tokenFromHash = hashParams.get('access_token') || hashParams.get('token');
-  if (tokenFromHash && sessionStorage.getItem('oauth_pending')) {
-    state.token = tokenFromHash;
-    localStorage.setItem('token', tokenFromHash);
-    sessionStorage.removeItem('oauth_pending');
-    // Clean URL
-    history.replaceState(null, '', '/');
+window.addEventListener('load', async () => {
+  try {
+    state.currentUser = await api('/auth/users/me');
+    state.authenticated = true;
+    if (location.hash === '#/login') location.hash = '/dashboard';
+  } catch (_) {
+    state.authenticated = false;
   }
   router.handle();
 });

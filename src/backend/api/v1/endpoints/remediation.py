@@ -2,9 +2,11 @@
 Endpoints for remediation actions on findings.
 """
 
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.backend.api.deps import get_current_active_user
@@ -18,6 +20,14 @@ from src.backend.services.notification_service import NotificationService
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class RemediationRequest(BaseModel):
+    finding_id: int
+
+
+class SecretReplacementRequest(RemediationRequest):
+    confirm_url_and_history_change: bool
 
 
 def _action_to_response(action: RemediationAction) -> dict:
@@ -35,15 +45,27 @@ def _action_to_response(action: RemediationAction) -> dict:
         else None,
         "verified": action.verified,
         "error_message": action.error_message,
+        "details": json.loads(action.verification_details)
+        if action.verification_details
+        else None,
     }
 
 
-@router.post("/make-private", dependencies=[Depends(enforce_remediation_rate_limit)])
-async def make_gist_private(
-    finding_id: int,
+@router.post(
+    "/replace-with-secret", dependencies=[Depends(enforce_remediation_rate_limit)]
+)
+async def replace_gist_with_secret(
+    request: SecretReplacementRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
+    if not request.confirm_url_and_history_change:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirm that replacement changes the Gist URL and drops history",
+        )
+
+    finding_id = request.finding_id
     finding = (
         db.query(Finding)
         .join(Gist)
@@ -63,7 +85,7 @@ async def make_gist_private(
     notifier = NotificationService(db)
 
     try:
-        action = await service.make_private(finding_id, current_user.id)
+        action = await service.replace_with_secret(finding_id, current_user.id)
         await verifier.verify_action(action)
         await notifier.notify_remediation_complete(action)
         return _action_to_response(action)
@@ -78,7 +100,7 @@ async def make_gist_private(
             detail=str(e),
         )
     except Exception:
-        logger.exception("make-private remediation failed for finding %s", finding_id)
+        logger.exception("secret replacement failed for finding %s", finding_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Remediation failed.",
@@ -87,10 +109,11 @@ async def make_gist_private(
 
 @router.post("/delete", dependencies=[Depends(enforce_remediation_rate_limit)])
 async def delete_gist(
-    finding_id: int,
+    request: RemediationRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
+    finding_id = request.finding_id
     finding = (
         db.query(Finding)
         .join(Gist)
@@ -134,10 +157,11 @@ async def delete_gist(
 
 @router.post("/rotate", dependencies=[Depends(enforce_remediation_rate_limit)])
 async def rotate_secret(
-    finding_id: int,
+    request: RemediationRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
+    finding_id = request.finding_id
     finding = (
         db.query(Finding)
         .join(Gist)

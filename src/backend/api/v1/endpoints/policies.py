@@ -3,8 +3,10 @@ Endpoints for managing account-level security policies.
 """
 
 import logging
+import json
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.backend.api.deps import get_current_active_user
@@ -17,12 +19,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+class PolicyUpdateRequest(BaseModel):
+    auto_remediate: Optional[bool] = None
+    auto_remediate_types: Optional[list[str]] = None
+    notify_on_scan: Optional[bool] = None
+    notify_on_finding: Optional[bool] = None
+    digest_frequency: Optional[str] = None
+
+
 def _policy_to_response(policy: AccountPolicy) -> dict:
     return {
         "id": policy.id,
         "user_id": policy.user_id,
         "auto_remediate": policy.auto_remediate,
-        "auto_remediate_types": policy.auto_remediate_types,
+        "auto_remediate_types": json.loads(policy.auto_remediate_types or "[]"),
         "notify_on_scan": policy.notify_on_scan,
         "notify_on_finding": policy.notify_on_finding,
         "digest_frequency": policy.digest_frequency,
@@ -41,27 +51,20 @@ async def get_policy(
 
 @router.put("/")
 async def update_policy(
-    auto_remediate: Optional[bool] = None,
-    auto_remediate_types: Optional[str] = None,
-    notify_on_scan: Optional[bool] = None,
-    notify_on_finding: Optional[bool] = None,
-    digest_frequency: Optional[str] = None,
+    request: PolicyUpdateRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     service = PolicyService(db)
 
-    updates = {}
-    if auto_remediate is not None:
-        updates["auto_remediate"] = auto_remediate
-    if auto_remediate_types is not None:
-        updates["auto_remediate_types"] = auto_remediate_types
-    if notify_on_scan is not None:
-        updates["notify_on_scan"] = notify_on_scan
-    if notify_on_finding is not None:
-        updates["notify_on_finding"] = notify_on_finding
-    if digest_frequency is not None:
-        updates["digest_frequency"] = digest_frequency
+    updates = request.model_dump(exclude_unset=True)
+    if "auto_remediate_types" in updates:
+        updates["auto_remediate_types"] = json.dumps(updates["auto_remediate_types"])
+    if updates.get("digest_frequency") not in {None, "daily", "weekly", "never"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="digest_frequency must be daily, weekly, or never",
+        )
 
     try:
         policy = await service.update_policy(current_user.id, **updates)
