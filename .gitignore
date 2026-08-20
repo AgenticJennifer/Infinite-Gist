@@ -7,20 +7,30 @@ build/
 .coverage
 htmlcov/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Node
+node_modules/
 
 # Environment
+# .env.example is the tracked template and must stay tracked.
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
 
 # Database
 *.db
 *.sqlite
+*.sqlite3
 .docker/data/
 
 # IDE / Editor
 .vscode/
 .idea/
+.zed/
 *.swp
 *.swo
 
@@ -34,13 +44,18 @@ Thumbs.db
 .codegraph/
 .agent/
 
-# Planning phases (staging/working only)
+# Agent / assistant working state (never belongs in the published repo)
+.claude/
+.scratch/
 .planning/phases/
+.planning/config.json
+.planning/STATE.md
 
 # Session artifacts
 session-*.md
 codeburn-*.md
 codeburn-*.json
+cm-timeline*.md
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 graft/
